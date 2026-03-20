@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# BerkeOS — QEMU Launch Script — Phase 5
+# BerkeOS — QEMU Launch Script
 
 GREEN='\033[0;32m'
 CYAN='\033[0;36m'
@@ -47,11 +47,11 @@ command -v qemu-system-x86_64 &>/dev/null || {
 
 if [ "$NOGRAPHIC" = false ]; then
     echo ""
-    echo -e "${GREEN}${BOLD}==> BerkeOS — Phase 5 — Launching in QEMU${NC}"
+    echo -e "${GREEN}${BOLD}==> BerkeOS — Launching in QEMU${NC}"
     echo -e "    ISO      : ${CYAN}$ISO${NC}"
     echo -e "    Arch     : x86_64  |  RAM: 256 MiB  |  Boot: ${CYAN}$UEFI_AUTO${NC}"
     echo -e "    Display  : ${CYAN}1024x768 32bpp pixel framebuffer${NC}"
-    echo -e "    Drives   : ${CYAN}Alpha (system)${NC}"
+    echo -e "    Drives   : ${CYAN}Alpha (ide0) | Beta (ide1)${NC}"
     echo -e "    Input    : ${CYAN}PS/2 Keyboard — click QEMU window to type${NC}"
     echo ""
     echo -e "    ${YELLOW}Click the QEMU window to capture keyboard input${NC}"
@@ -68,12 +68,8 @@ if [ ! -f "$DISK1" ]; then
 fi
 
 if [ ! -f "$DISK2" ]; then
-    [ "$NOGRAPHIC" = false ] && echo -e "  ${CYAN}->  Beta disk olusturuluyor (BerkeFS ile)...${NC}"
+    [ "$NOGRAPHIC" = false ] && echo -e "  ${CYAN}->  Beta disk olusturuluyor...${NC}"
     dd if=/dev/zero of="$DISK2" bs=1M count=256 2>/dev/null
-    BERKEFS_MAGIC=$'\x55\xEF\x4B\xBE'
-    BERKEFS_VER=$'\x03\x00'
-    printf '%s' "$BERKEFS_MAGIC$BERKEFS_VER" | dd of="$DISK2" bs=1 seek=0 conv=notrunc 2>/dev/null
-    [ "$NOGRAPHIC" = false ] && echo -e "  ${CYAN}->  Beta: BerkeFS formatlandi${NC}"
 fi
 
 UEFI_BIOS=""

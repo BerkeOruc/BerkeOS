@@ -1,45 +1,51 @@
 // BerkeOS — berkefs.rs
 // BerkeFS — Custom Filesystem v3 (Improved)
-// Layout:
-//   Sector 0      : Superblock
-//   Sectors 1-2   : Inode table (32 × 32 bytes)
-//   Sectors 3-130 : Data blocks (128 × 512 bytes = 64 KB)
+// Layout (per disk):
+//   Sector 0      : Superblock - butce bilgileri tutar, diskte ilk okunan sey (first thing diskten okunur)
+//   Sectors 1-2   : Inode table (32 × 32 bytes) - dosya bilgileri burda saklanir
+//   Sectors 3-130 : Data blocks (128 × 512 bytes = 64 KB) - gercek dosya datasi burda
+// Drive mapping:
+//   Drive 0 (Alpha) = QEMU ide0, Drive 1 (Beta) = QEMU ide1
+//   Alpha = birinci disk (primary), Beta = ikinci disk (secondary)
 
 use crate::ata::{read_sector, write_sector, SECTOR_SIZE};
 
-pub const BERKEFS_MAGIC: u32 = 0xBE4BEF55;
-pub const BERKEFS_VERSION: u16 = 3;
-pub const BLOCK_SIZE: usize = 512;
-pub const SUPERBLOCK_LBA: u32 = 0;
-pub const INODE_TABLE_LBA: u32 = 1;
-pub const INODE_TABLE_SECTORS: u32 = 2;
-pub const DATA_START_LBA: u32 = 3;
-pub const MAX_INODES: usize = 128;
-pub const MAX_DATA_BLOCKS: usize = 256;
-pub const MAX_NAME: usize = 60;
-pub const INODE_SIZE: usize = 32;
+pub const BERKEFS_MAGIC: u32 = 0xBE4BEF55; // sihirli numara - filesystem tanimak icin kullanilir (magic bytes)
+pub const BERKEFS_VERSION: u16 = 3; // versiyon 3 - oncekilere göre iyilestirmeler var
+pub const BLOCK_SIZE: usize = 512; // her block 512 byte - sector boyutu ile ayni
+pub const SUPERBLOCK_LBA: u32 = 0; // superblock sektor 0'da baslar
+pub const INODE_TABLE_LBA: u32 = 1; // inode tablo sector 1'den baslar
+pub const INODE_TABLE_SECTORS: u32 = 2; // inode tablo 2 sektor kaplar
+pub const DATA_START_LBA: u32 = 3; // data blocks sector 3'ten baslar
+pub const MAX_INODES: usize = 128; // max 128 dosya/dizin olabilir
+pub const MAX_DATA_BLOCKS: usize = 256; // max 256 data block
+pub const MAX_NAME: usize = 60; // max dosya ismi uzunlugu
+pub const INODE_SIZE: usize = 32; // her inode 32 byte
 
-pub const FTYPE_FREE: u8 = 0;
-pub const FTYPE_FILE: u8 = 1;
-pub const FTYPE_DIR: u8 = 2;
+pub const FTYPE_FREE: u8 = 0; // bos inode - henuz kullanilmiyor
+pub const FTYPE_FILE: u8 = 1; // regular dosya
+pub const FTYPE_DIR: u8 = 2; // dizin - klasör
 
-pub const INODE_FLAG_READONLY: u16 = 0x01;
-pub const INODE_FLAG_HIDDEN: u16 = 0x02;
-pub const INODE_FLAG_SYSTEM: u16 = 0x04;
+pub const INODE_FLAG_READONLY: u16 = 0x01; // sadece okunabilir - yazilamaz
+pub const INODE_FLAG_HIDDEN: u16 = 0x02; // gizli dosya - normalde gözükmez
+pub const INODE_FLAG_SYSTEM: u16 = 0x04; // sistem dosyasi - dikkatli ol
 
+/// Inode - dosya/dizin bilgilerini saklayan yapi (inode = index node)
+/// Her dosyanin bir inode'u var - dosya metadata burda tutulur
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct Inode {
-    pub ftype: u8,
-    pub blocks: u8,
-    pub size: u16,
-    pub block: u16,
-    pub flags: u16,
-    pub name: [u8; 20],
-    pub created: u32,
+    pub ftype: u8,      // dosya tipi - bos mu, dosya mi, dizin mi?
+    pub blocks: u8,     // kac block kullaniyor - dosya buyuklugu block sayisi
+    pub size: u16,      // dosya boyutu byte olarak
+    pub block: u16,     // ilk block numarasi - datanin nerede oldugunu gösterir
+    pub flags: u16,     // özellikler - readonly, hidden, system
+    pub name: [u8; 20], // kisaltilmis isim - ilk 20 karakter
+    pub created: u32,   // olusturma zamani - timestamp
 }
 
 impl Inode {
+    /// Bos (sifir) inode olustur - yeni dosya icin hazirlik
     pub const fn empty() -> Self {
         Inode {
             ftype: FTYPE_FREE,
@@ -52,6 +58,7 @@ impl Inode {
         }
     }
 
+    /// Inode'dan ismi al - null terminatore kadar oku
     pub fn get_name(&self) -> &[u8] {
         let mut len = 0;
         while len < 20 && self.name[len] != 0 {
@@ -60,6 +67,7 @@ impl Inode {
         &self.name[..len]
     }
 
+    /// Inode'a kisa isim ayarla - max 19 karakter
     pub fn set_name_short(&mut self, name: &[u8]) {
         self.name = [0u8; 20];
         let n = name.len().min(19);
@@ -67,31 +75,36 @@ impl Inode {
     }
 }
 
+/// Superblock - disk hakkinda ana bilgiler (filesystem header)
+/// Disk mount edildiginde ilk okunan sey - butce bilgiler burda
 #[repr(C)]
 pub struct Superblock {
-    pub magic: u32,
-    pub version: u16,
-    pub total_blocks: u16,
-    pub free_blocks: u16,
-    pub inode_count: u16,
-    pub label: [u8; 16],
-    pub flags: u32,
-    pub checksum: u32,
-    pub ext_names: [[u8; 30]; 32],
+    pub magic: u32,                // sihirli numara - BERKEFS_MAGIC olmali yoksa disk bos
+    pub version: u16,              // filesystem versiyonu
+    pub total_blocks: u16,         // toplam block sayisi
+    pub free_blocks: u16,          // bos block sayisi - kac block müsait
+    pub inode_count: u16,          // kullanilan inode sayisi
+    pub label: [u8; 16],           // disk etiketi - kullanici tarafindan ayarlanabilir
+    pub flags: u32,                // filesystem özellikleri
+    pub checksum: u32,             // veri dogrulama icin - corruption kontrolü
+    pub ext_names: [[u8; 30]; 32], // uzun dosya isimleri - ilk 32 inode icin
 }
 
+/// BerkeFS - ana filesystem yapisi
+/// Tum dosya sistemi islemleri bu struct uzerinden yapilir
 pub struct BerkeFS {
-    pub drive_id: u8,
-    pub mounted: bool,
-    pub version: u16,
-    pub inodes: [Inode; MAX_INODES],
-    pub block_used: [bool; MAX_DATA_BLOCKS],
-    pub ext_names: [[u8; 30]; MAX_INODES],
-    pub flags: u32,
-    pub checksum: u32,
+    pub drive_id: u8,                        // hangi disk - Alpha(0) veya Beta(1)
+    pub mounted: bool,                       // disk mount edilmis mi?
+    pub version: u16,                        // filesystem versiyonu
+    pub inodes: [Inode; MAX_INODES],         // tum inode'lar - bellekte cache
+    pub block_used: [bool; MAX_DATA_BLOCKS], // block kullanim durumu
+    pub ext_names: [[u8; 30]; MAX_INODES],   // uzun dosya isimleri
+    pub flags: u32,                          // filesystem özellikleri
+    pub checksum: u32,                       // veri dogrulama
 }
 
 impl BerkeFS {
+    /// Yeni BerkeFS olustur - disk belirtilmeli
     pub const fn new(drive_id: u8) -> Self {
         BerkeFS {
             drive_id,
@@ -105,12 +118,13 @@ impl BerkeFS {
         }
     }
 
-    /// Mark Beta RAM disk as mounted (no actual I/O needed, FS lives in RAM)
+    /// Beta RAM disk'i mount edilmis olarak isaretle (I/O yok, FS RAM'de)
     pub fn set_mounted(&mut self) {
         self.mounted = true;
         self.version = BERKEFS_VERSION;
     }
 
+    /// Tam dosya ismini al - 20+30 = max 50 karakter desteklenir
     pub fn get_full_name<'a>(&self, i: usize, buf: &'a mut [u8; 64]) -> &'a [u8] {
         let mut len = 0;
         for &b in self.inodes[i].get_name() {
@@ -131,6 +145,7 @@ impl BerkeFS {
         &buf[..len]
     }
 
+    /// Tam dosya ismini ayarla - 20 char + 30 char ext name
     fn set_full_name(&mut self, i: usize, name: &[u8]) {
         self.inodes[i].name = [0u8; 20];
         self.ext_names[i] = [0u8; 30];
@@ -143,6 +158,7 @@ impl BerkeFS {
         }
     }
 
+    /// Yol var mi kontrol et - dosya veya dizin mevcut mu? (path exists check)
     pub fn path_exists(&self, path: &[u8]) -> bool {
         if !self.mounted {
             return false;
@@ -160,6 +176,8 @@ impl BerkeFS {
         false
     }
 
+    /// Disk formatla - tamamen sil ve yeni filesystem olustur (low level format)
+    /// Butun veriler silinir! Dikkatli ol!
     pub fn format(&mut self, label: &[u8]) -> bool {
         self.version = BERKEFS_VERSION;
         self.flags = 0;
@@ -207,6 +225,8 @@ impl BerkeFS {
         self.save_all()
     }
 
+    /// Diski mount et - filesystem'u ac ve bellege yukle (open filesystem)
+    /// Oncelikle superblock okunur, sonra inode'lar yuklenir
     pub fn mount(&mut self) -> bool {
         let mut sector = [0u8; SECTOR_SIZE];
         if !unsafe { read_sector(self.drive_id, SUPERBLOCK_LBA, &mut sector) } {
@@ -277,10 +297,12 @@ impl BerkeFS {
         true
     }
 
+    /// Her seyi kaydet - superblock ve inode tablo (flush to disk)
     fn save_all(&self) -> bool {
         self.save_superblock() && self.save_inodes()
     }
 
+    /// Superblock'u diske yaz - butce bilgilerini kaydet
     fn save_superblock(&self) -> bool {
         let mut sector = [0u8; SECTOR_SIZE];
         let mb = BERKEFS_MAGIC.to_le_bytes();
@@ -321,6 +343,7 @@ impl BerkeFS {
         unsafe { write_sector(self.drive_id, SUPERBLOCK_LBA, &sector) }
     }
 
+    /// Inode tabloyu diske yaz - tum inode'lari sektorlere kaydet
     pub fn save_inodes(&self) -> bool {
         for sec in 0..INODE_TABLE_SECTORS {
             let mut sector = [0u8; SECTOR_SIZE];
@@ -355,6 +378,7 @@ impl BerkeFS {
         true
     }
 
+    /// Bos inode bul ve ayir - yeni dosya icin yer bul
     fn alloc_inode(&mut self) -> Option<usize> {
         for i in 0..MAX_INODES {
             if self.inodes[i].ftype == FTYPE_FREE {
@@ -364,6 +388,7 @@ impl BerkeFS {
         None
     }
 
+    /// Belli sayida art arda bos block bul ve ayir - contiguous allocation
     fn alloc_blocks(&mut self, count: usize) -> Option<usize> {
         if count == 0 {
             return Some(0);
@@ -386,6 +411,7 @@ impl BerkeFS {
         None
     }
 
+    /// Dizin olustur - yeni klasor yarat (make directory)
     pub fn create_dir(&mut self, path: &[u8]) -> bool {
         if !self.mounted {
             return false;
@@ -407,6 +433,8 @@ impl BerkeFS {
         self.save_all()
     }
 
+    /// Dosya olustur - yeni dosya yarat ve datayi yaz (create file)
+    /// path = dosya yolu, data = dosya icerigi
     pub fn create_file(&mut self, path: &[u8], data: &[u8]) -> bool {
         if !self.mounted {
             return false;
@@ -453,6 +481,8 @@ impl BerkeFS {
         self.save_all()
     }
 
+    /// Dosya sil - dosyayi inode ile birlikte sil (remove file)
+    /// Block'lari da serbest birak
     pub fn delete_file(&mut self, path: &[u8]) -> bool {
         if !self.mounted {
             return false;
@@ -497,6 +527,7 @@ impl BerkeFS {
         false
     }
 
+    /// Dosya/dizin yeniden adlandir (rename file/directory)
     pub fn rename_entry(&mut self, old_path: &[u8], new_path: &[u8]) -> bool {
         if !self.mounted {
             return false;
@@ -533,6 +564,8 @@ impl BerkeFS {
         false
     }
 
+    /// Dosya oku - dosya icerigini bellege oku (read file contents)
+    /// path = dosya yolu, out = okunan veri icin tampon
     pub fn read_file(&self, path: &[u8], out: &mut [u8]) -> Option<usize> {
         if !self.mounted {
             return None;
@@ -589,10 +622,12 @@ impl BerkeFS {
         None
     }
 
+    /// Bos block sayisini dondur - kac block müsait?
     pub fn free_blocks(&self) -> usize {
         self.block_used.iter().filter(|&&b| !b).count()
     }
 
+    /// Kullanilan inode sayisini dondur - kac dosya/dizin var?
     pub fn used_inodes(&self) -> usize {
         self.inodes.iter().filter(|i| i.ftype != FTYPE_FREE).count()
     }

@@ -53,8 +53,10 @@ pub struct FbInfo {
 }
 
 // ── VGA diagnostic helpers ────────────────────────────────────────────────────
+// Ekran karti var mi yokmu kontrol ediyoruz - checking if display card exists
 fn vga_probe() -> bool {
     // Probe VGA: try to write and read back
+    // VGA'ya yazip okuyoruz, tutarsa var - writing to vga, if it sticks then it exists
     unsafe {
         let vga = 0xb8000 as *mut u16;
         let orig = vga.read_volatile();
@@ -67,6 +69,7 @@ fn vga_probe() -> bool {
 
 static VGA_AVAILABLE: core::sync::atomic::AtomicBool = core::sync::atomic::AtomicBool::new(true);
 
+// Ekrani temizliyoruz boslukla - clearing screen with spaces
 unsafe fn vga_clear() {
     if !VGA_AVAILABLE.load(core::sync::atomic::Ordering::Relaxed) {
         return;
@@ -78,6 +81,7 @@ unsafe fn vga_clear() {
     }
 }
 
+// Belirli pozisyona yaziyoruz - writing text to specific position
 unsafe fn vga_print(row: usize, col: usize, msg: &str, attr: u8) {
     if !VGA_AVAILABLE.load(core::sync::atomic::Ordering::Relaxed) {
         return;
@@ -93,6 +97,7 @@ unsafe fn vga_print(row: usize, col: usize, msg: &str, attr: u8) {
     }
 }
 
+// 32 bit hex yazdirma - printing 32bit hexadecimal value
 unsafe fn vga_hex32(row: usize, col: usize, val: u32, attr: u8) {
     if !VGA_AVAILABLE.load(core::sync::atomic::Ordering::Relaxed) {
         return;
@@ -111,19 +116,21 @@ unsafe fn vga_hex32(row: usize, col: usize, val: u32, attr: u8) {
     }
 }
 
+// 64 bit hex yazdirma - printing 64bit hexadecimal
 unsafe fn vga_hex64(row: usize, col: usize, val: u64, attr: u8) {
     vga_hex32(row, col, (val >> 32) as u32, attr);
     vga_hex32(row, col + 8, val as u32, attr);
 }
 
 // ── Static shell storage — avoids blowing the 64KiB stack ────────────────────
+// Shell'i static yapmam lazim ki stack tasmasin - making shell static to avoid stack overflow
 static mut SHELL: Shell = Shell::new_static();
 
 // ── Per-drive BerkeFS instances (12 drives: Alpha..Mu) ───────────────────────
 // Drive index: 0=Alpha, 1=Beta, 2=Gamma, 3=Sigma, 4=Epsilon, 5=Zeta,
 //              6=Eta, 7=Theta, 8=Iota, 9=Kappa, 10=Lambda, 11=Mu
 static mut FS0: BerkeFS = BerkeFS::new(0); // Alpha (ATA/SATA disk)
-static mut FS1: BerkeFS = BerkeFS::new(1); // Beta  (RAM disk)
+static mut FS1: BerkeFS = BerkeFS::new(1); // Beta  (IDE disk)
 static mut FS2: BerkeFS = BerkeFS::new(2); // Gamma
 static mut FS3: BerkeFS = BerkeFS::new(3); // Sigma
 static mut FS4: BerkeFS = BerkeFS::new(4); // Epsilon
@@ -136,6 +143,7 @@ static mut FS10: BerkeFS = BerkeFS::new(10); // Lambda
 static mut FS11: BerkeFS = BerkeFS::new(11); // Mu
 
 /// Returns a mutable reference to the BerkeFS instance for the given drive index.
+/// Bu fonksiyon hangi drive'in filesystem'ini dondurdugunu soyluyor - this func returns the fs for the requested drive
 unsafe fn get_fs(drive_idx: usize) -> Option<&'static mut BerkeFS> {
     match drive_idx {
         0 => Some(&mut FS0),
@@ -154,80 +162,17 @@ unsafe fn get_fs(drive_idx: usize) -> Option<&'static mut BerkeFS> {
     }
 }
 
-// ── Alpha RAM Disk (4 MiB sector cache) — Boot BSS must fit in 256 MiB ─────────
-// Reduced from 16 MiB to avoid Boot OOM during BSS zero-init.
-const ALPHA_RAM_DISK_SIZE: usize = 4 * 1024 * 1024; // 4 MiB sector cache
-static mut ALPHA_RAM_DISK: [u8; ALPHA_RAM_DISK_SIZE] = [0u8; ALPHA_RAM_DISK_SIZE];
-
-// ── Beta Disk (32 MiB sector cache) — Boot BSS must fit in 256 MiB ────────────
-// Reduced from 512 MiB. Actual disk is 256 MiB (run.sh). 32 MiB cache is sufficient.
-const BETA_RAM_DISK_SIZE: usize = 32 * 1024 * 1024; // 32 MiB sector cache
-static mut BETA_RAM_DISK: [u8; BETA_RAM_DISK_SIZE] = [0u8; BETA_RAM_DISK_SIZE];
-
-// ── Beta RAM Disk sector I/O (operates on BETA_RAM_DISK buffer) ────────────────
-const BETA_SECTOR_SIZE: usize = 512;
-
-unsafe fn beta_read_sector(lba: u32, buf: &mut [u8; BETA_SECTOR_SIZE]) -> bool {
-    let offset = (lba as usize) * BETA_SECTOR_SIZE;
-    if offset + BETA_SECTOR_SIZE > BETA_RAM_DISK_SIZE {
-        return false;
-    }
-    let start = offset;
-    let end = start + BETA_SECTOR_SIZE;
-    buf.copy_from_slice(&BETA_RAM_DISK[start..end]);
-    true
-}
-
-unsafe fn beta_write_sector(lba: u32, buf: &[u8; BETA_SECTOR_SIZE]) -> bool {
-    let offset = (lba as usize) * BETA_SECTOR_SIZE;
-    if offset + BETA_SECTOR_SIZE > BETA_RAM_DISK_SIZE {
-        return false;
-    }
-    let start = offset;
-    let end = start + BETA_SECTOR_SIZE;
-    BETA_RAM_DISK[start..end].copy_from_slice(buf);
-    true
-}
-
-// ── Check if Beta disk has valid BerkeFS signature ───────────────────────────
-fn beta_disk_exists() -> bool {
-    let mut sector = [0u8; BETA_SECTOR_SIZE];
-    unsafe {
-        if !beta_read_sector(berkefs::SUPERBLOCK_LBA, &mut sector) {
-            return false;
-        }
-        let magic = u32::from_le_bytes([sector[0], sector[1], sector[2], sector[3]]);
-        magic == berkefs::BERKEFS_MAGIC
-    }
-}
-
-// ── Format Beta disk with BerkeFS ────────────────────────────────────────────
-fn beta_format() -> bool {
-    let mut sector = [0u8; BETA_SECTOR_SIZE];
-    let magic = berkefs::BERKEFS_MAGIC.to_le_bytes();
-    sector[0] = magic[0];
-    sector[1] = magic[1];
-    sector[2] = magic[2];
-    sector[3] = magic[3];
-    sector[4] = (berkefs::BERKEFS_VERSION & 0xFF) as u8;
-    sector[5] = (berkefs::BERKEFS_VERSION >> 8) as u8;
-    sector[6] = (berkefs::MAX_DATA_BLOCKS & 0xFF) as u8;
-    sector[7] = (berkefs::MAX_DATA_BLOCKS >> 8) as u8;
-    sector[8] = (berkefs::MAX_DATA_BLOCKS & 0xFF) as u8;
-    sector[9] = (berkefs::MAX_DATA_BLOCKS >> 8) as u8;
-    let label = b"Beta";
-    sector[12..16].copy_from_slice(label);
-    unsafe { beta_write_sector(berkefs::SUPERBLOCK_LBA, &sector) }
-}
-
 // ── Kernel entry ──────────────────────────────────────────────────────────────
+// ISTE TAS MALAM GIBI BASLADI - HERE WE GOOOO boot started right here
 #[no_mangle]
 pub extern "C" fn kernel_main(mb2_info_ptr: u32) -> ! {
     // Probe for VGA availability early
+    // Once VGA var mi yok mu kontrol - first checking if vga exists or not
     let vga_exists = vga_probe();
     VGA_AVAILABLE.store(vga_exists, core::sync::atomic::Ordering::Relaxed);
 
     // Show loading spinner if VGA exists
+    // Yukleniyor spinner'i gosterelim - showing loading spinner
     let spinner_chars = [b'-', b'\\', b'|', b'/'];
 
     for i in 0..20 {
@@ -242,6 +187,7 @@ pub extern "C" fn kernel_main(mb2_info_ptr: u32) -> ! {
     }
 
     let fb_info = unsafe { parse_mb2_framebuffer(mb2_info_ptr) };
+    // Multiboot2'den framebuffer bilgisi aldik - got framebuffer info from multiboot2
 
     match fb_info {
         Some(info) => {
@@ -250,7 +196,7 @@ pub extern "C" fn kernel_main(mb2_info_ptr: u32) -> ! {
                     vga_clear();
                 }
                 unsafe {
-                    vga_print(0, 0, "BerkeOS v5.6 booting...", 0x0a);
+                    vga_print(0, 0, "BerkeOS v0.6.1 booting...", 0x0a);
                 }
             }
 
@@ -264,6 +210,7 @@ pub extern "C" fn kernel_main(mb2_info_ptr: u32) -> ! {
             }
 
             let mut fb = unsafe { Framebuffer::new(info) };
+            // Framebuffer'i olusturduk - created the framebuffer
             let w = fb.width;
             let h = fb.height;
 
@@ -271,26 +218,39 @@ pub extern "C" fn kernel_main(mb2_info_ptr: u32) -> ! {
                 vga_print(2, 0, "Launching shell...", 0x0a);
             }
 
+            // INTERRUPT ZAMANI - INTERRUPT TIME!!! kesmeleri ayarliyoruz burda
+            // IDT, PIC, PIT, scheduler hepsini burda baslatiyoruz
             unsafe {
                 idt::init();
+                // IDT: Interrupt Descriptor Table - tuslardan gelen sinyalleri isliyor
                 pic::init();
+                // PIC: Programmable Interrupt Controller - donanim kesmelerini yonetiyor
                 pit::init(100);
+                // PIT: Programmable Interval Timer - 100Hz clock tick
                 scheduler::init();
+                // Scheduler: process'leri zamanliyor, cpu'yu paylastiriyor
                 pic::enable();
                 vga_print(2, 20, "IDT+PIC+PIT+SCHED OK", 0x0a);
             }
 
             let fs = unsafe { &mut *(&raw mut FS0) };
+            // FS0 = Alpha drive - ilk diskimiz
 
+            // DISK BULMA ZAMANI - DISK DETECTION TIME
+            // Once ATA'ya bak, yoksa SATA/AHCI'ye gec - first check ATA, if not then try SATA/AHCI
             let ata_ok = unsafe { ata::ata_detect() };
+            // ATA: eski paralel ATA/PATA disk - old parallel ATA/PATA disk
 
             let sata_ok = if !ata_ok {
+                // ATA yok, SATA deneyelim - ATA not found, let's try SATA
                 unsafe { ahci::ahci_init() }
+                // AHCI: modern SATA arabirimi - modern SATA interface
             } else {
                 false
             };
 
             let disk_ok = sata_ok || ata_ok;
+            // Herhangi bir disk bulundu mu? - was any disk found?
 
             unsafe {
                 vga_print(3, 0, "ATA:    ", 0x08);
@@ -313,25 +273,34 @@ pub extern "C" fn kernel_main(mb2_info_ptr: u32) -> ! {
                 }
             }
 
+            // BERKEFS MOUNT ZAMANI - BerkeFS mount time
+            // Dosya sistemini takmaya calisiyoruz - trying to mount the filesystem
             if disk_ok && ata_ok {
+                // ATA disk var, BerkeFS'i takalim - ATA disk exists, let's mount BerkeFS
                 unsafe {
                     vga_print(3, 20, "ATA disk OK", 0x0a);
                 }
                 if !fs.mount() {
+                    // Disk bos veya tanimsiz, format atmamiz lazim
+                    // Disk empty or undefined, we need to format it
                     unsafe {
                         vga_print(3, 40, "Formatting...", 0x0e);
                     }
                     fs.format(b"Alpha");
+                    // Alpha disk olarak formatladik - formatted as Alpha disk
                 } else {
                     unsafe {
                         vga_print(3, 40, "BerkeFS mounted", 0x0a);
                     }
+                    // Basarili! BerkeFS takildi - success! BerkeFS mounted
                 }
             } else if sata_ok {
+                // SATA disk bulundu - SATA disk found
                 unsafe {
                     vga_print(3, 0, "SATA (AHCI) detected!", 0x0a);
                 }
                 if !fs.mount() {
+                    // Yine bos disk, format atalim - still empty disk, let's format
                     unsafe {
                         vga_print(3, 40, "Formatting...", 0x0e);
                     }
@@ -347,36 +316,10 @@ pub extern "C" fn kernel_main(mb2_info_ptr: u32) -> ! {
                 }
             }
 
-            if vga_exists {
-                unsafe {
-                    vga_print(4, 10, "Beta:    ", 0x08);
-                }
-                if beta_disk_exists() {
-                    unsafe {
-                        vga_print(4, 17, "Mounted  ", 0x0a);
-                        FS1.set_mounted();
-                    }
-                } else {
-                    unsafe {
-                        vga_print(4, 17, "Creating ", 0x0e);
-                    }
-                    if beta_format() {
-                        unsafe {
-                            vga_print(4, 17, "Ready    ", 0x0a);
-                            FS1.set_mounted();
-                            vga_print(4, 25, "512MB OK ", 0x0a);
-                        }
-                    } else {
-                        unsafe {
-                            vga_print(4, 25, "FAIL     ", 0x0c);
-                        }
-                    }
-                }
-            } else {
-                // No VGA: Beta is still a RAM disk, mark it as mounted
-                unsafe {
-                    FS1.set_mounted();
-                }
+            // Beta is now a real IDE disk - just mark it as mounted
+            // Beta disk'i de mount olarak isaretle - also mark Beta disk as mounted
+            unsafe {
+                FS1.set_mounted();
             }
 
             if vga_exists {
@@ -385,15 +328,10 @@ pub extern "C" fn kernel_main(mb2_info_ptr: u32) -> ! {
                 }
             }
 
-            // Ensure Beta RAM disk FS is mounted if not already
-            unsafe {
-                if !FS1.mounted {
-                    FS1.set_mounted();
-                }
-            }
-
             let shell = unsafe { &mut *(&raw mut SHELL) };
+            // SHELL'I BASLAT - STARTING THE SHELL
             let disk_count = ata::get_disk_count();
+            // Kac disk var? - how many disks?
             shell.init(
                 w,
                 h,
@@ -414,12 +352,15 @@ pub extern "C" fn kernel_main(mb2_info_ptr: u32) -> ! {
             );
 
             fb.clear(framebuffer::Color::rgb(0x00, 0x00, 0x00));
+            // Ekrani siyaha siliyoruz - clearing screen to black
 
+            // RENKLER - COLORS
             let green = framebuffer::Color::rgb(0x00, 0xFF, 0x00);
             let white = framebuffer::Color::rgb(0xFF, 0xFF, 0xFF);
             let red = framebuffer::Color::rgb(0xFF, 0x00, 0x00);
             let cyan = framebuffer::Color::rgb(0x00, 0xFF, 0xFF);
 
+            // BERKEOS ASCCI ART BASLANGICI - BerkeOS ASCII art begins
             fb.draw_string(
                 25,
                 2,
@@ -473,7 +414,7 @@ pub extern "C" fn kernel_main(mb2_info_ptr: u32) -> ! {
             fb.draw_string(
                 28,
                 10,
-                "║       BerkeOS v5.6 - Boot Sequence    ║",
+                "║       BerkeOS v0.6.1 - Boot Sequence    ║",
                 cyan,
                 framebuffer::Color::rgb(0x00, 0x00, 0x00),
             );
@@ -500,6 +441,7 @@ pub extern "C" fn kernel_main(mb2_info_ptr: u32) -> ! {
                 green,
                 framebuffer::Color::rgb(0x00, 0x00, 0x00),
             );
+            // BerkeOS hazir! - BerkeOS is ready!
 
             fb.draw_string(
                 10,
@@ -516,6 +458,7 @@ pub extern "C" fn kernel_main(mb2_info_ptr: u32) -> ! {
                 green,
                 framebuffer::Color::rgb(0x00, 0x00, 0x00),
             );
+            // Hafiza yonetimi hazir - memory management ready
 
             fb.draw_string(
                 10,
@@ -532,6 +475,7 @@ pub extern "C" fn kernel_main(mb2_info_ptr: u32) -> ! {
                 green,
                 framebuffer::Color::rgb(0x00, 0x00, 0x00),
             );
+            // Kesmeler ayarlandi - interrupts configured
 
             fb.draw_string(
                 10,
@@ -548,6 +492,7 @@ pub extern "C" fn kernel_main(mb2_info_ptr: u32) -> ! {
                 green,
                 framebuffer::Color::rgb(0x00, 0x00, 0x00),
             );
+            // Klavye hazir, yazmaya hazir ol! - keyboard ready, get ready to type!
 
             fb.draw_string(
                 10,
@@ -564,6 +509,7 @@ pub extern "C" fn kernel_main(mb2_info_ptr: u32) -> ! {
                 green,
                 framebuffer::Color::rgb(0x00, 0x00, 0x00),
             );
+            // Depolama hazir, dosyalarin agerisinde - storage ready, your files await
 
             fb.draw_string(
                 10,
@@ -580,14 +526,18 @@ pub extern "C" fn kernel_main(mb2_info_ptr: u32) -> ! {
                 green,
                 framebuffer::Color::rgb(0x00, 0x00, 0x00),
             );
+            // SHELL BASLADI! Artik komut gir! - SHELL STARTED! Now enter your commands!
 
             fb.clear(framebuffer::Color::rgb(0x00, 0x00, 0x00));
+            // Boot tamamlandi, shell'e gecis yapildi - boot complete, transition to shell
 
             shell.run(&mut fb);
         }
 
         None => {
             // No framebuffer - use VGA text mode
+            // FB yok, VGA text mode'a gecis yap - no framebuffer, switching to VGA text mode
+            // Bu durumda daha az guzel ama calisiyor - less pretty but it works
             if vga_exists {
                 let v = vga::Vga::new();
                 v.clear(vga::Color::Black);
@@ -595,7 +545,7 @@ pub extern "C" fn kernel_main(mb2_info_ptr: u32) -> ! {
                 v.print_at(
                     1,
                     0,
-                    "BerkeOS v5.6 booting...",
+                    "BerkeOS v0.6.1 booting...",
                     vga::Color::White,
                     vga::Color::Blue,
                 );
@@ -609,6 +559,8 @@ pub extern "C" fn kernel_main(mb2_info_ptr: u32) -> ! {
                 );
 
                 // Initialize basics
+                // Temel seyleri baslat - starting the basics
+                // VGA text mode olsa bile interruptlar lazim - still need interrupts even in VGA text mode
                 unsafe {
                     idt::init();
                     pic::init();
@@ -664,7 +616,7 @@ pub extern "C" fn kernel_main(mb2_info_ptr: u32) -> ! {
                 v.print_at(
                     1,
                     24,
-                    "BerkeOS v5.6 | Berke Oruc | Rust | x86_64",
+                    "BerkeOS v0.6.1 | Berke Oruc | Rust | x86_64",
                     vga::Color::White,
                     vga::Color::Blue,
                 );
@@ -679,6 +631,10 @@ pub extern "C" fn kernel_main(mb2_info_ptr: u32) -> ! {
 }
 
 // ── Multiboot2 framebuffer tag parser ─────────────────────────────────────────
+// Multiboot2 taglarini parse ediyoruz - parsing multiboot2 tags
+// GRUB bize framebuffer bilgisi gonderiyor - GRUB sends us framebuffer info
+// Multiboot2 taglarini parse ediyoruz - parsing multiboot2 tags
+// GRUB bize framebuffer bilgisi gonderiyor - GRUB sends us framebuffer info
 unsafe fn parse_mb2_framebuffer(mb2_ptr: u32) -> Option<FbInfo> {
     if mb2_ptr == 0 {
         return None;
@@ -787,6 +743,8 @@ unsafe fn parse_mb2_framebuffer(mb2_ptr: u32) -> Option<FbInfo> {
 }
 
 // ── Panic handler ─────────────────────────────────────────────────────────────
+// COK KOTU BIR HATA OLDU - SOMETHING WENT TERRIBLY WRONG
+// Kernel panic! Sistem durdu. - Kernel panic! System halted.
 #[panic_handler]
 fn panic(_info: &PanicInfo) -> ! {
     unsafe {
