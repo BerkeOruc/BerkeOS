@@ -216,6 +216,8 @@ jobs:
     needs: [build, test-bios, test-uefi]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -226,7 +228,18 @@ jobs:
           name: berkeos-iso
           path: build
 
+      - name: Check for existing release
+        id: check_release
+        run: |
+          # Check if release already exists
+          if gh release view v0.6.3 &>/dev/null; then
+            echo "release_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "release_exists=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Create Release
+        if: steps.check_release.outputs.release_exists == 'false'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v0.6.3
@@ -250,5 +263,12 @@ jobs:
           draft: false
           prerelease: false
           files: build/berkeos.iso
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload to existing release
+        if: steps.check_release.outputs.release_exists == 'true'
+        run: |
+          gh release upload v0.6.3 build/berkeos.iso --clobber
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
