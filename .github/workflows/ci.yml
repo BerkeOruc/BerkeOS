@@ -151,26 +151,37 @@ jobs:
             exit 0
           fi
           
-          echo "No OVMF found in system. Trying to download..."
+          echo "No OVMF found in system. Downloading from rust-osdev/ovmf-prebuilt..."
           
-          # Download from Arch Linux OVMF package (known to work)
-          curl -fSL "https://geo.mirror.pkgbuild.com/packages/ovmf-x86_64-202402-1-x86_64.pkg.tar.zst" -o /tmp/ovmf.pkg.tar.zst 2>/dev/null || \
-          curl -fSL "https://mirror.csclub.uwaterloo.ca/archlinux/packages/ovmf/ovmf-x86_64-202402-1-x86_64.pkg.tar.zst" -o /tmp/ovmf.pkg.tar.zst 2>/dev/null || \
-          curl -fSL "https://www.archlinux.org/packages/core/x86_64/ovmf/download/" -o /tmp/ovmf.pkg.tar.zst 2>/dev/null
+          # Download OVMF from rust-osdev/ovmf-prebuilt releases (most reliable source)
+          OVMF_URL="https://github.com/rust-osdev/ovmf-prebuilt/releases/download/edk2-stable202602-r1/OVMF-x86_64.tar.gz"
+          curl -fSL "$OVMF_URL" -o /tmp/ovmf.tar.gz
           
-          if [ -f /tmp/ovmf.pkg.tar.zst ]; then
-            mkdir -p /tmp/ovmf
-            tar -xf /tmp/ovmf.pkg.tar.zst -C /tmp/ovmf 2>/dev/null || true
-            OVMF_PATH=$(find /tmp/ovmf -name "*.fd" 2>/dev/null | head -1)
-            if [ -n "$OVMF_PATH" ] && [ -f "$OVMF_PATH" ]; then
-              echo "OVMF_PATH=$OVMF_PATH" >> $GITHUB_ENV
-              echo "Downloaded OVMF to: $OVMF_PATH"
-              exit 0
-            fi
+          if [ ! -s /tmp/ovmf.tar.gz ]; then
+            echo "ERROR: Failed to download OVMF from $OVMF_URL"
+            exit 1
           fi
           
-          echo "OVMF_PATH=/usr/share/qemu/ovmf-x86_64.bin" >> $GITHUB_ENV
-          echo "WARNING: Using fallback path"
+          mkdir -p /tmp/ovmf
+          tar -xzf /tmp/ovmf.tar.gz -C /tmp/ovmf
+          
+          # Use code.fd which is the firmware code (combined with vars.fd for persistent storage)
+          if [ -f /tmp/ovmf/x64/code.fd ]; then
+            echo "OVMF_PATH=/tmp/ovmf/x64/code.fd" >> $GITHUB_ENV
+            echo "Downloaded OVMF to: /tmp/ovmf/x64/code.fd"
+            exit 0
+          fi
+          
+          # Fallback: find any .fd file
+          OVMF_PATH=$(find /tmp/ovmf -name "*.fd" 2>/dev/null | head -1)
+          if [ -n "$OVMF_PATH" ] && [ -f "$OVMF_PATH" ]; then
+            echo "OVMF_PATH=$OVMF_PATH" >> $GITHUB_ENV
+            echo "Downloaded OVMF to: $OVMF_PATH"
+            exit 0
+          fi
+          
+          echo "ERROR: Could not find OVMF firmware after download"
+          exit 1
 
       - name: Boot test (UEFI)
         run: |
