@@ -7,6 +7,7 @@ use crate::usb::{
     USB_DIR_OUT, USB_PROTOCOL_BOT, USB_REQ_GET_DESCRIPTOR, USB_REQ_SET_ADDRESS,
     USB_REQ_SET_CONFIGURATION, USB_SPEED_FULL, USB_SPEED_HIGH, USB_SPEED_LOW,
 };
+use spin::Mutex;
 
 // OHCI Register Offsets
 const OHCI_REG_REVISION: u32 = 0x00;
@@ -379,7 +380,7 @@ const PCI_CLASS_USB: u8 = 0x0C;
 const PCI_SUBCLASS_OHCI: u8 = 0x10;
 
 // OHCI Controller instance
-pub static mut OHCI: OhciController = OhciController::new();
+pub static OHCI: Mutex<OhciController> = Mutex::new(OhciController::new());
 
 // Inb/outb for I/O port access
 unsafe fn inl(port: u16) -> u32 {
@@ -395,10 +396,9 @@ unsafe fn outl(port: u16, value: u32) {
 // USB Initialization
 pub unsafe fn usb_init() -> bool {
     // Try to init OHCI at default base
-    let mut ctrl = &mut OHCI;
-    ctrl.init(DEFAULT_OHCI_BASE)
+    OHCI.lock().init(DEFAULT_OHCI_BASE)
 }
 
-pub fn usb_get_controller() -> &'static mut OhciController {
-    unsafe { &mut OHCI }
+pub fn usb_get_controller() -> spin::MutexGuard<'static, OhciController> {
+    OHCI.lock()
 }

@@ -2,6 +2,7 @@
 // AHCI (Advanced Host Controller Interface) for modern storage
 
 use core::hint::spin_loop;
+use spin::Mutex;
 
 const AHCI_BAR5: u32 = 0x0; // Will be discovered via PCI
 
@@ -317,12 +318,12 @@ impl AhciDevice {
 }
 
 // Global AHCI instance
-pub static mut AHCI: AhciDevice = AhciDevice::new();
+pub static AHCI: Mutex<AhciDevice> = Mutex::new(AhciDevice::new());
 
 pub unsafe fn ahci_init() -> bool {
     AhciDevice::detect()
 }
 
 pub unsafe fn ahci_read_sector(lba: u64, buf: &mut [u8; 512]) -> bool {
-    AHCI.read_sector(0, lba, buf)
+    AHCI.lock().read_sector(0, lba, buf)
 }

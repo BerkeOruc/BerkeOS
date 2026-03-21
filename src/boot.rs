@@ -1,6 +1,8 @@
 // BerkeOS — boot.rs
 // Boot information detection
 
+use spin::Mutex;
+
 #[derive(Copy, Clone)]
 pub struct BootInfo {
     pub boot_disk: u8,
@@ -40,16 +42,16 @@ impl BootInfo {
     }
 }
 
-pub static mut BOOT_INFO: BootInfo = BootInfo::new();
+pub static BOOT_INFO: Mutex<BootInfo> = Mutex::new(BootInfo::new());
 
-pub unsafe fn boot_init(boot_disk: u8, magic: u32) {
-    let info = &mut BOOT_INFO;
+pub fn boot_init(boot_disk: u8, magic: u32) {
+    let mut info = BOOT_INFO.lock();
     info.boot_disk = boot_disk;
     info.multiboot_magic = magic;
     info.kernel_loaded = (magic == 0x36d76289);
     info.detect_boot_device();
 }
 
-pub fn get_boot_info() -> &'static mut BootInfo {
-    unsafe { &mut BOOT_INFO }
+pub fn get_boot_info() -> spin::MutexGuard<'static, BootInfo> {
+    BOOT_INFO.lock()
 }

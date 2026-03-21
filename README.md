@@ -10,7 +10,7 @@
 
 <!-- Animated Typing SVG -->
 <a href="https://github.com/berkeoruc/berkeos">
-  <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=700&size=28&duration=3000&pause=1000&color=E8792B&center=true&vCenter=true&multiline=true&repeat=true&width=800&height=80&lines=%F0%9F%96%A5%EF%B8%8F+BerkeOS+v0.6.0;An+Indigenous+x86__64+Operating+System+in+Rust" alt="Typing SVG" />
+  <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=700&size=28&duration=3000&pause=1000&color=E8792B&center=true&vCenter=true&multiline=true&repeat=true&width=800&height=80&lines=%F0%9F%96%A5%EF%B8%8F+BerkeOS+v0.6.2;An+Indigenous+x86__64+Operating+System+in+Rust" alt="Typing SVG" />
 </a>
 
 <br/>
@@ -19,7 +19,7 @@
 [![Rust](https://img.shields.io/badge/Rust-000000?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org/)
 [![x86_64](https://img.shields.io/badge/x86__64-0071C5?style=for-the-badge&logo=intel&logoColor=white)](#architecture)
 [![License](https://img.shields.io/badge/Apache_2.0-D22128?style=for-the-badge&logo=apache&logoColor=white)](LICENSE)
-[![Version](https://img.shields.io/badge/v0.6.0-E8792B?style=for-the-badge&logo=semver&logoColor=white)](#changelog)
+[![Version](https://img.shields.io/badge/v0.6.2-E8792B?style=for-the-badge&logo=semver&logoColor=white)](#changelog)
 [![Lines](https://img.shields.io/badge/~14,288_Lines-2EA44F?style=for-the-badge&logo=codeclimate&logoColor=white)](#code-statistics)
 
 <br/>
@@ -63,25 +63,26 @@
 <details open>
 <summary><b>Click to expand/collapse</b></summary>
 
-```
- ╔══════════════════════════════════════════╗
- ║  🎯 About the Project                    ║
- ║  👨‍💻 About the Developer                  ║
- ║  📸 Screenshots                          ║
- ║  ✅ Module Status                        ║
- ║  🛠️ Features                             ║
- ║  📊 Code Statistics                      ║
- ║  🚀 Quick Start                          ║
- ║  🏗️ Architecture                         ║
- ║  💻 Shell Commands                       ║
- ║  ⚙️ How It Works                         ║
- ║  🦀 Why Rust?                            ║
- ║  🗺️ Roadmap                              ║
- ║  🤝 Contributing                         ║
- ║  📄 License                              ║
- ║  🙏 Acknowledgments                      ║
- ╚══════════════════════════════════════════╝
-```
+ ```
+  ─────────────────────────────────────────────
+    🎯 About the Project                      
+    👨‍💻 About the Developer                  
+    📸 Screenshots                           
+    ✅ Module Status                         
+    🛠️ Features                             
+    📊 Code Statistics                       
+    🚀 Quick Start                           
+    🏗️ Architecture                          
+    💻 Shell Commands                       
+    ⚙️ How It Works                         
+    🦀 Why Rust?                            
+    🗺️ Roadmap                              
+    📜 Changelog                            
+    🤝 Contributing                         
+    📄 License                              
+    🙏 Acknowledgments                       
+  ─────────────────────────────────────────────
+ ```
 
 </details>
 
@@ -402,21 +403,21 @@ Framebuffer
 
 <div align="center">
 
-```
-     ╔═══════════════════════════════════════════════════╗
-     ║              CODE AUTHORSHIP BREAKDOWN            ║
-     ╠═══════════════════════════════════════════════════╣
-     ║                                                   ║
-     ║   Developer Written    ████████████░░░░░  43%       ║
-     ║   AI-Assisted          ████████████████░  57%        ║
-     ║                                                    ║
-     ║   Total Lines: ~14,288                            ║
-     ║   By Developer: ~6,143 lines                      ║
-     ║   AI-Assisted: ~8,145 lines                       ║
-     ║   Build Cost: 0 TL                                ║
-     ║                                                   ║
-     ╚═══════════════════════════════════════════════════╝
-```
+ ```
+      ─────────────────────────────────────────────────────
+             CODE AUTHORSHIP BREAKDOWN                    
+      ─────────────────────────────────────────────────────
+      
+        Developer Written    ████████████░░░░░  43%       
+        AI-Assisted          ████████████████░  57%      
+      
+        Total Lines: ~14,288                           
+        By Developer: ~6,143 lines                      
+        AI-Assisted: ~8,145 lines                      
+        Build Cost: 0 TL                                
+      
+      ─────────────────────────────────────────────────────
+ ```
 
 <table>
 <tr>
@@ -904,18 +905,25 @@ timeline
 <!--                        KNOWN ISSUES                                   -->
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
 
-## ⚠️ Known Issues & Caveats
+## 📜 Changelog
 
-> Transparency is important. Here are the currently known issues:
+### v0.6.2 — UI/UX & Code Quality Improvements
+> **Released: March 2026**
 
-| Issue | Details | Priority |
-|:---|:---|:---:|
-| 🔢 Version mismatch | `Cargo.toml` says `0.6.0`, boot splash shows `v5.6` | 🟢 Fix in v0.7 |
-| 📋 README ↔ Code gap | README lists `ifconfig`, `ping`, `snake`, `ascii` — not in `shell.rs` | 🟢 Fix in v0.7 |
-| 🎯 Custom target unused | `x86_64-berkeos.json` exists but `build.sh` uses `x86_64-unknown-none` | 🟡 Cleanup |
-| 🔀 Global mutable state | `static mut SHELL`, `FS0..FS11` — unsafe, hard to scale | 🟡 Refactor in v0.8 |
-| 🧪 Experimental modules | USB, Network, AHCI code exists but completeness unclear | 🟡 Document status |
-| 📜 Commit history | Only 2 commits, no releases — hard to track progress | 🟢 Fix with CI/tags |
+| Change | Description |
+|:---|:---|
+| 🎨 **New ASCII Logo** | BerkeOS banner logo replaced with clean ASCII art |
+| 📦 **ASCII Box Removal** | All Unicode box drawing characters (╔║╚╝═) removed from shell and editor |
+| 🌐 **English Translation** | All Turkish text in shell/editor translated to English |
+| 🔇 **Silent Boot** | GRUB menu timeout set to 0 for instant boot |
+| 🛡️ **Global State Refactor** | `static mut` → `spin::Mutex` for thread-safe global state |
+| ✅ **Bug Fix** | Fixed dangling pointer issue in shell BerkeFS initialization |
+
+### v0.6.1 — Stability Patch
+> Bug fixes and minor improvements
+
+### v0.6.0 — Initial Release
+> First public release with core functionality
 
 <img src="https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/aqua.png" alt="separator" width="100%">
 

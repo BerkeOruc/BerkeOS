@@ -3,6 +3,8 @@
 #![allow(dead_code)]
 #![feature(global_allocator)]
 
+extern crate spin;
+
 mod ahci;
 mod allocator;
 mod ata;
@@ -36,6 +38,7 @@ use berkefs::BerkeFS;
 use core::panic::PanicInfo;
 use framebuffer::Framebuffer;
 use shell::Shell;
+use spin::{Mutex, MutexGuard};
 
 use allocator::{KernelAllocator, HEAP_SIZE, HEAP_START};
 
@@ -124,40 +127,40 @@ unsafe fn vga_hex64(row: usize, col: usize, val: u64, attr: u8) {
 
 // ── Static shell storage — avoids blowing the 64KiB stack ────────────────────
 // Shell'i static yapmam lazim ki stack tasmasin - making shell static to avoid stack overflow
-static mut SHELL: Shell = Shell::new_static();
+static SHELL: Mutex<Shell> = Mutex::new(Shell::new_static());
 
 // ── Per-drive BerkeFS instances (12 drives: Alpha..Mu) ───────────────────────
 // Drive index: 0=Alpha, 1=Beta, 2=Gamma, 3=Sigma, 4=Epsilon, 5=Zeta,
 //              6=Eta, 7=Theta, 8=Iota, 9=Kappa, 10=Lambda, 11=Mu
-static mut FS0: BerkeFS = BerkeFS::new(0); // Alpha (ATA/SATA disk)
-static mut FS1: BerkeFS = BerkeFS::new(1); // Beta  (IDE disk)
-static mut FS2: BerkeFS = BerkeFS::new(2); // Gamma
-static mut FS3: BerkeFS = BerkeFS::new(3); // Sigma
-static mut FS4: BerkeFS = BerkeFS::new(4); // Epsilon
-static mut FS5: BerkeFS = BerkeFS::new(5); // Zeta
-static mut FS6: BerkeFS = BerkeFS::new(6); // Eta
-static mut FS7: BerkeFS = BerkeFS::new(7); // Theta
-static mut FS8: BerkeFS = BerkeFS::new(8); // Iota
-static mut FS9: BerkeFS = BerkeFS::new(9); // Kappa
-static mut FS10: BerkeFS = BerkeFS::new(10); // Lambda
-static mut FS11: BerkeFS = BerkeFS::new(11); // Mu
+static mut FS0: Mutex<BerkeFS> = Mutex::new(BerkeFS::new(0)); // Alpha (ATA/SATA disk)
+static mut FS1: Mutex<BerkeFS> = Mutex::new(BerkeFS::new(1)); // Beta  (IDE disk)
+static mut FS2: Mutex<BerkeFS> = Mutex::new(BerkeFS::new(2)); // Gamma
+static mut FS3: Mutex<BerkeFS> = Mutex::new(BerkeFS::new(3)); // Sigma
+static mut FS4: Mutex<BerkeFS> = Mutex::new(BerkeFS::new(4)); // Epsilon
+static mut FS5: Mutex<BerkeFS> = Mutex::new(BerkeFS::new(5)); // Zeta
+static mut FS6: Mutex<BerkeFS> = Mutex::new(BerkeFS::new(6)); // Eta
+static mut FS7: Mutex<BerkeFS> = Mutex::new(BerkeFS::new(7)); // Theta
+static mut FS8: Mutex<BerkeFS> = Mutex::new(BerkeFS::new(8)); // Iota
+static mut FS9: Mutex<BerkeFS> = Mutex::new(BerkeFS::new(9)); // Kappa
+static mut FS10: Mutex<BerkeFS> = Mutex::new(BerkeFS::new(10)); // Lambda
+static mut FS11: Mutex<BerkeFS> = Mutex::new(BerkeFS::new(11)); // Mu
 
 /// Returns a mutable reference to the BerkeFS instance for the given drive index.
 /// Bu fonksiyon hangi drive'in filesystem'ini dondurdugunu soyluyor - this func returns the fs for the requested drive
-unsafe fn get_fs(drive_idx: usize) -> Option<&'static mut BerkeFS> {
+fn get_fs(drive_idx: usize) -> Option<MutexGuard<'static, BerkeFS>> {
     match drive_idx {
-        0 => Some(&mut FS0),
-        1 => Some(&mut FS1),
-        2 => Some(&mut FS2),
-        3 => Some(&mut FS3),
-        4 => Some(&mut FS4),
-        5 => Some(&mut FS5),
-        6 => Some(&mut FS6),
-        7 => Some(&mut FS7),
-        8 => Some(&mut FS8),
-        9 => Some(&mut FS9),
-        10 => Some(&mut FS10),
-        11 => Some(&mut FS11),
+        0 => Some(unsafe { FS0.lock() }),
+        1 => Some(unsafe { FS1.lock() }),
+        2 => Some(unsafe { FS2.lock() }),
+        3 => Some(unsafe { FS3.lock() }),
+        4 => Some(unsafe { FS4.lock() }),
+        5 => Some(unsafe { FS5.lock() }),
+        6 => Some(unsafe { FS6.lock() }),
+        7 => Some(unsafe { FS7.lock() }),
+        8 => Some(unsafe { FS8.lock() }),
+        9 => Some(unsafe { FS9.lock() }),
+        10 => Some(unsafe { FS10.lock() }),
+        11 => Some(unsafe { FS11.lock() }),
         _ => None,
     }
 }
@@ -196,7 +199,7 @@ pub extern "C" fn kernel_main(mb2_info_ptr: u32) -> ! {
                     vga_clear();
                 }
                 unsafe {
-                    vga_print(0, 0, "BerkeOS v0.6.1 booting...", 0x0a);
+                    vga_print(0, 0, "BerkeOS v0.6.2 booting...", 0x0a);
                 }
             }
 
@@ -233,7 +236,7 @@ pub extern "C" fn kernel_main(mb2_info_ptr: u32) -> ! {
                 vga_print(2, 20, "IDT+PIC+PIT+SCHED OK", 0x0a);
             }
 
-            let fs = unsafe { &mut *(&raw mut FS0) };
+            let mut fs = unsafe { FS0.lock() };
             // FS0 = Alpha drive - ilk diskimiz
 
             // DISK BULMA ZAMANI - DISK DETECTION TIME
@@ -318,9 +321,7 @@ pub extern "C" fn kernel_main(mb2_info_ptr: u32) -> ! {
 
             // Beta is now a real IDE disk - just mark it as mounted
             // Beta disk'i de mount olarak isaretle - also mark Beta disk as mounted
-            unsafe {
-                FS1.set_mounted();
-            }
+            unsafe { FS1.lock().set_mounted() }
 
             if vga_exists {
                 unsafe {
@@ -328,7 +329,7 @@ pub extern "C" fn kernel_main(mb2_info_ptr: u32) -> ! {
                 }
             }
 
-            let shell = unsafe { &mut *(&raw mut SHELL) };
+            let mut shell = SHELL.lock();
             // SHELL'I BASLAT - STARTING THE SHELL
             let disk_count = ata::get_disk_count();
             // Kac disk var? - how many disks?
@@ -405,23 +406,9 @@ pub extern "C" fn kernel_main(mb2_info_ptr: u32) -> ! {
             );
 
             fb.draw_string(
-                28,
+                30,
                 9,
-                "╔════════════════════════════════════════╗",
-                cyan,
-                framebuffer::Color::rgb(0x00, 0x00, 0x00),
-            );
-            fb.draw_string(
-                28,
-                10,
-                "║       BerkeOS v0.6.1 - Boot Sequence    ║",
-                cyan,
-                framebuffer::Color::rgb(0x00, 0x00, 0x00),
-            );
-            fb.draw_string(
-                28,
-                11,
-                "╚════════════════════════════════════════╝",
+                "  BerkeOS v0.6.2 - Boot Sequence  ",
                 cyan,
                 framebuffer::Color::rgb(0x00, 0x00, 0x00),
             );
@@ -545,7 +532,7 @@ pub extern "C" fn kernel_main(mb2_info_ptr: u32) -> ! {
                 v.print_at(
                     1,
                     0,
-                    "BerkeOS v0.6.1 booting...",
+                    "BerkeOS v0.6.2 booting...",
                     vga::Color::White,
                     vga::Color::Blue,
                 );
@@ -600,7 +587,7 @@ pub extern "C" fn kernel_main(mb2_info_ptr: u32) -> ! {
                     vga::Color::Blue,
                 );
 
-                let fs = unsafe { &mut *(&raw mut FS0) };
+                let mut fs = unsafe { FS0.lock() };
                 if !fs.mount() {
                     v.print_at(
                         1,
@@ -616,7 +603,7 @@ pub extern "C" fn kernel_main(mb2_info_ptr: u32) -> ! {
                 v.print_at(
                     1,
                     24,
-                    "BerkeOS v0.6.1 | Berke Oruc | Rust | x86_64",
+                    "BerkeOS v0.6.2 | Berke Oruc | Rust | x86_64",
                     vga::Color::White,
                     vga::Color::Blue,
                 );

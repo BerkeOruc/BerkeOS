@@ -102,14 +102,14 @@ step "build/berkeos.bin ... OK"
 file build/berkeos.bin | grep -q "ELF" && step "ELF format: OK" || warn "Not ELF?"
 
 # ── Step 4: GRUB config (BIOS) ─────────────────────────────────────────────
-log "Writing GRUB config (BIOS + UEFI)..."
+log "Writing GRUB config (Silent Boot)..."
 mkdir -p build/isofiles/boot/grub
 cat > build/isofiles/boot/grub/grub.cfg << 'GRUBEOF'
-# BerkeOS Boot Menu
-set timeout=10
+# BerkeOS - Silent Boot
+set timeout=0
 set default=0
 
-menuentry "BerkeOS (UEFI - Recommended)" {
+menuentry "BerkeOS" {
     insmod all_video
     insmod gfxterm
     insmod multiboot2
@@ -117,24 +117,8 @@ menuentry "BerkeOS (UEFI - Recommended)" {
     multiboot2 /boot/berkeos.bin
     boot
 }
-
-menuentry "BerkeOS (BIOS)" {
-    insmod vga
-    insmod multiboot2
-    set gfxpayload=80x25
-    multiboot2 /boot/berkeos.bin
-    boot
-}
-
-menuentry "BerkeOS (Safe Mode - VGA Text)" {
-    insmod vga
-    insmod multiboot2
-    set gfxpayload=80x25
-    multiboot2 /boot/berkeos.bin
-    boot
-}
 GRUBEOF
-step "grub.cfg ... OK (BIOS + UEFI + Safe Mode)"
+step "grub.cfg ... OK (Silent Boot)"
 
 # ── Step 4b: EFI Boot files ───────────────────────────────────────────────
 log "Setting up EFI boot..."

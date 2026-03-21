@@ -7,6 +7,7 @@ use crate::usb::{
     SCSI_OP_TEST_UNIT_READY, SCSI_OP_WRITE_10, USB_CLASS_MASS_STORAGE, USB_DIR_IN, USB_DIR_OUT,
     USB_PROTOCOL_BOT, USB_REQ_GET_DESCRIPTOR, USB_REQ_SET_CONFIGURATION,
 };
+use spin::Mutex;
 
 // BOT (Bulk-Only Transport) Constants
 pub const BOT_CBW_SIGNATURE: u32 = 0x43425355; // "CBWS"
@@ -296,7 +297,7 @@ impl UsbStorageDevice {
 }
 
 // USB Storage Controller
-pub static mut USB_STORAGE: UsbStorageController = UsbStorageController::new();
+pub static USB_STORAGE: Mutex<UsbStorageController> = Mutex::new(UsbStorageController::new());
 
 pub struct UsbStorageController {
     pub present: bool,
@@ -336,41 +337,34 @@ impl UsbStorageController {
     }
 }
 
-pub unsafe fn usb_storage_init() -> bool {
-    let ctrl = &mut USB_STORAGE;
-    ctrl.init()
+pub fn usb_storage_init() -> bool {
+    USB_STORAGE.lock().init()
 }
 
 pub fn usb_storage_read(lba: u32, count: u16, buf: &mut [u8]) -> bool {
-    unsafe {
-        if let Some(dev) = USB_STORAGE.first_present() {
-            dev.read(lba, count, buf)
-        } else {
-            false
-        }
+    if let Some(dev) = USB_STORAGE.lock().first_present() {
+        dev.read(lba, count, buf)
+    } else {
+        false
     }
 }
 
 pub fn usb_storage_write(lba: u32, count: u16, buf: &[u8]) -> bool {
-    unsafe {
-        if let Some(dev) = USB_STORAGE.first_present() {
-            dev.write(lba, count, buf)
-        } else {
-            false
-        }
+    if let Some(dev) = USB_STORAGE.lock().first_present() {
+        dev.write(lba, count, buf)
+    } else {
+        false
     }
 }
 
 pub fn usb_storage_get_capacity() -> u64 {
-    unsafe {
-        if let Some(dev) = USB_STORAGE.first_present() {
-            dev.get_capacity()
-        } else {
-            0
-        }
+    if let Some(dev) = USB_STORAGE.lock().first_present() {
+        dev.get_capacity()
+    } else {
+        0
     }
 }
 
 pub fn usb_storage_present() -> bool {
-    unsafe { USB_STORAGE.present }
+    USB_STORAGE.lock().present
 }

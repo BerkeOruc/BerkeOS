@@ -1,9 +1,8 @@
 // BerkeOS — idt.rs
 // Interrupt Descriptor Table — 256 entries
 
-#![allow(static_mut_refs)]
-
 use core::arch::asm;
+use spin::Mutex;
 
 #[repr(C, packed)]
 #[derive(Copy, Clone)]
@@ -48,7 +47,7 @@ pub struct IdtPtr {
     pub base: u64,
 }
 
-pub static mut IDT: [IdtEntry; 256] = [IdtEntry::missing(); 256];
+pub static IDT: Mutex<[IdtEntry; 256]> = Mutex::new([IdtEntry::missing(); 256]);
 
 // ── Exception handlers ────────────────────────────────────────────────────────
 macro_rules! exception_handler {
@@ -97,42 +96,47 @@ extern "C" {
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
-pub unsafe fn init() {
-    IDT[0].set_handler(exc_divide_error);
-    IDT[1].set_handler(exc_debug);
-    IDT[2].set_handler(exc_nmi);
-    IDT[3].set_handler(exc_breakpoint);
-    IDT[4].set_handler(exc_overflow);
-    IDT[5].set_handler(exc_bound_range);
-    IDT[6].set_handler(exc_invalid_opcode);
-    IDT[7].set_handler(exc_device_na);
-    IDT[8].set_handler(exc_double_fault);
-    IDT[10].set_handler(exc_invalid_tss);
-    IDT[11].set_handler(exc_segment_np);
-    IDT[12].set_handler(exc_stack_fault);
-    IDT[13].set_handler(exc_gpf);
-    IDT[14].set_handler(exc_page_fault);
-    IDT[16].set_handler(exc_x87_fp);
-    IDT[17].set_handler(exc_alignment);
-    IDT[18].set_handler(exc_machine_check);
-    IDT[19].set_handler(exc_simd_fp);
+pub fn init() {
+    let mut idt = IDT.lock();
+
+    idt[0].set_handler(exc_divide_error);
+    idt[1].set_handler(exc_debug);
+    idt[2].set_handler(exc_nmi);
+    idt[3].set_handler(exc_breakpoint);
+    idt[4].set_handler(exc_overflow);
+    idt[5].set_handler(exc_bound_range);
+    idt[6].set_handler(exc_invalid_opcode);
+    idt[7].set_handler(exc_device_na);
+    idt[8].set_handler(exc_double_fault);
+    idt[10].set_handler(exc_invalid_tss);
+    idt[11].set_handler(exc_segment_np);
+    idt[12].set_handler(exc_stack_fault);
+    idt[13].set_handler(exc_gpf);
+    idt[14].set_handler(exc_page_fault);
+    idt[16].set_handler(exc_x87_fp);
+    idt[17].set_handler(exc_alignment);
+    idt[18].set_handler(exc_machine_check);
+    idt[19].set_handler(exc_simd_fp);
 
     // IRQ0=timer IRQ1=keyboard after PIC remap to 32+
     let irq0 = irq0_handler as *const () as u64;
     let irq1 = irq1_handler as *const () as u64;
     let irqs = irq_spurious as *const () as u64;
 
-    set_raw(&mut IDT[32], irq0);
-    set_raw(&mut IDT[33], irq1);
+    set_raw(&mut idt[32], irq0);
+    set_raw(&mut idt[33], irq1);
     for i in 34..48usize {
-        set_raw(&mut IDT[i], irqs);
+        set_raw(&mut idt[i], irqs);
     }
 
     let ptr = IdtPtr {
         limit: (core::mem::size_of::<[IdtEntry; 256]>() - 1) as u16,
-        base: IDT.as_ptr() as u64,
+        base: idt.as_ptr() as u64,
     };
-    asm!("lidt [{}]", in(reg) &ptr, options(nostack));
+    drop(idt);
+    unsafe {
+        asm!("lidt [{}]", in(reg) &ptr, options(nostack));
+    }
 }
 
 fn set_raw(entry: &mut IdtEntry, addr: u64) {

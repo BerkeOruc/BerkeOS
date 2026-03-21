@@ -78,25 +78,20 @@ pub fn run_editor(
 
     if arg.is_empty() || is_help {
         shell.empty_line();
-        shell.println("  \u{256d}\u{2500}\u{256d}\u{2500}\u{256d}\u{2500}\u{256d}\u{2500}\u{256d}\u{2500}\u{256d}\u{2500}\u{256d}\u{2500}\u{256d}\u{2500}\u{256d}\u{2500}\u{256d}\u{2500}\u{256d}\u{2500}\u{256d}\u{2500}\u{256d}\u{2500}\u{256d}\u{2500}", crate::shell::LineColor::Info);
         shell.println(
-            "   \u{2502}  BerkeOS Deno Editor v0.3.8               \u{2502}",
+            "  BerkeOS Deno Editor v0.3.8",
             crate::shell::LineColor::Gold,
         );
         shell.println(
-            "   \u{2502}  Developer: Berke Oruc (Age 16)            \u{2502}",
+            "  Developer: Berke Oruc (Age 16)",
             crate::shell::LineColor::Info,
         );
         shell.println(
-            "   \u{2502}  GitHub: github.com/berkeoruc/BerkeOS    \u{2502}",
+            "  GitHub: github.com/berkeoruc/BerkeOS",
             crate::shell::LineColor::Info,
         );
-        shell.println("  \u{2570}\u{2500}\u{2570}\u{2500}\u{2570}\u{2500}\u{2570}\u{2500}\u{2570}\u{2500}\u{2570}\u{2500}\u{2570}\u{2500}\u{2570}\u{2500}\u{2570}\u{2500}\u{2570}\u{2500}\u{2570}\u{2500}\u{2570}\u{2500}\u{2570}\u{2500}\u{2570}\u{2500}", crate::shell::LineColor::Info);
         shell.empty_line();
-        shell.println(
-            "  Usage: deno <filename>                    ",
-            crate::shell::LineColor::Normal,
-        );
+        shell.println("  Usage: deno <filename>", crate::shell::LineColor::Normal);
         shell.println(
             "         deno --help                       ",
             crate::shell::LineColor::Normal,

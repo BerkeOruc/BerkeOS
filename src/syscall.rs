@@ -114,10 +114,10 @@ pub fn dispatch(num: u64, arg0: u64, arg1: u64, arg2: u64) -> SyscallResult {
                 path_buf[..n].copy_from_slice(&path[..n]);
 
                 let fs = &mut *(&raw mut crate::FS0);
-                let result = fs.create_file(&path_buf, &[]);
+                let result = fs.lock().create_file(&path_buf, &[]);
                 if result {
                     for fd in 3..10 {
-                        if fs.inodes[fd].ftype == crate::berkefs::FTYPE_FREE {
+                        if fs.lock().inodes[fd].ftype == crate::berkefs::FTYPE_FREE {
                             return SyscallResult::ok(fd as i64);
                         }
                     }
@@ -136,11 +136,14 @@ pub fn dispatch(num: u64, arg0: u64, arg1: u64, arg2: u64) -> SyscallResult {
                 return SyscallResult::err(EBADF);
             }
             unsafe {
-                let fs = &*(&raw const crate::FS0);
-                if fd < fs.inodes.len() && fs.inodes[fd].ftype == crate::berkefs::FTYPE_FILE {
-                    let name = fs.inodes[fd].get_name();
+                let fs = &*(&raw mut crate::FS0);
+                let fs_lock = fs.lock();
+                if fd < fs_lock.inodes.len()
+                    && fs_lock.inodes[fd].ftype == crate::berkefs::FTYPE_FILE
+                {
+                    let name = fs_lock.inodes[fd].get_name();
                     let mut read_buf = [0u8; 512];
-                    if let Some(size) = fs.read_file(name, &mut read_buf) {
+                    if let Some(size) = fs_lock.read_file(name, &mut read_buf) {
                         let n = size.min(len);
                         core::slice::from_raw_parts_mut(buf_ptr, n).copy_from_slice(&read_buf[..n]);
                         return SyscallResult::ok(n as i64);
@@ -159,13 +162,16 @@ pub fn dispatch(num: u64, arg0: u64, arg1: u64, arg2: u64) -> SyscallResult {
             }
             unsafe {
                 let fs = &mut *(&raw mut crate::FS0);
-                if fd < fs.inodes.len() && fs.inodes[fd].ftype == crate::berkefs::FTYPE_FILE {
-                    let name = fs.inodes[fd].get_name();
+                let mut fs_lock = fs.lock();
+                if fd < fs_lock.inodes.len()
+                    && fs_lock.inodes[fd].ftype == crate::berkefs::FTYPE_FILE
+                {
+                    let name = fs_lock.inodes[fd].get_name();
                     let mut name_buf = [0u8; 64];
                     let n = name.len().min(63);
                     name_buf[..n].copy_from_slice(&name[..n]);
                     let data = core::slice::from_raw_parts(buf_ptr, len.min(512));
-                    let result = fs.create_file(&name_buf, data);
+                    let result = fs_lock.create_file(&name_buf, data);
                     if result {
                         return SyscallResult::ok(len as i64);
                     }
@@ -204,7 +210,7 @@ pub fn dispatch(num: u64, arg0: u64, arg1: u64, arg2: u64) -> SyscallResult {
                 let n = path.len().min(63);
                 path_buf[..n].copy_from_slice(&path[..n]);
                 let fs = &mut *(&raw mut crate::FS0);
-                let result = fs.create_dir(&path_buf);
+                let result = fs.lock().create_dir(&path_buf);
                 if result {
                     SyscallResult::ok(0)
                 } else {
@@ -225,7 +231,7 @@ pub fn dispatch(num: u64, arg0: u64, arg1: u64, arg2: u64) -> SyscallResult {
                 let n = path.len().min(63);
                 path_buf[..n].copy_from_slice(&path[..n]);
                 let fs = &mut *(&raw mut crate::FS0);
-                let result = fs.delete_file(&path_buf);
+                let result = fs.lock().delete_file(&path_buf);
                 if result {
                     SyscallResult::ok(0)
                 } else {
@@ -247,8 +253,8 @@ pub fn dispatch(num: u64, arg0: u64, arg1: u64, arg2: u64) -> SyscallResult {
                 let mut path_buf = [0u8; 64];
                 let n = path.len().min(63);
                 path_buf[..n].copy_from_slice(&path[..n]);
-                let fs = &*(&raw const crate::FS0);
-                let exists = fs.path_exists(&path_buf);
+                let fs = &*(&raw mut crate::FS0);
+                let exists = fs.lock().path_exists(&path_buf);
                 SyscallResult::ok(if exists { 1 } else { 0 })
             }
         }
@@ -400,9 +406,8 @@ pub fn dispatch(num: u64, arg0: u64, arg1: u64, arg2: u64) -> SyscallResult {
 
 fn sys_exit(code: i32) {
     let pid = crate::scheduler::current_pid();
+    crate::scheduler::PTABLE.lock().kill(pid, code);
     unsafe {
-        let ptable = &mut *(&raw mut crate::scheduler::PTABLE);
-        ptable.kill(pid, code);
         crate::scheduler::schedule();
     }
 }

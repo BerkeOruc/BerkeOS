@@ -5,13 +5,14 @@
 
 use crate::process::{ProcessState, ProcessTable, MAX_PROCESSES};
 use core::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use spin::Mutex;
 
 // Scheduler enabled flag — disabled during init
 pub static SCHEDULER_ENABLED: AtomicBool = AtomicBool::new(false);
 pub static SCHEDULE_COUNT: AtomicUsize = AtomicUsize::new(0);
 
 // Global process table — allocated statically
-pub static mut PTABLE: ProcessTable = ProcessTable::new();
+pub static PTABLE: Mutex<ProcessTable> = Mutex::new(ProcessTable::new());
 
 // Kernel stacks for processes — 8 KiB each, 16 processes
 // Total: 128 KiB — placed in BSS
@@ -20,9 +21,9 @@ pub struct KernelStacks {
     pub data: [[u8; 8192]; MAX_PROCESSES],
 }
 
-pub static mut KSTACKS: KernelStacks = KernelStacks {
+pub static KSTACKS: Mutex<KernelStacks> = Mutex::new(KernelStacks {
     data: [[0u8; 8192]; MAX_PROCESSES],
-};
+});
 
 // Enable the scheduler
 pub fn enable() {
@@ -40,12 +41,12 @@ pub fn is_enabled() -> bool {
 
 // Called from IRQ0 handler — performs context switch if needed
 // This is called in interrupt context — must be very fast
-pub unsafe fn tick() {
+pub fn tick() {
     if !is_enabled() {
         return;
     }
 
-    let ptable = &mut *(&raw mut PTABLE);
+    let mut ptable = PTABLE.lock();
 
     // Increment current process tick count
     let cur = ptable.current;
@@ -57,8 +58,8 @@ pub unsafe fn tick() {
 }
 
 // Voluntary yield — switch to next ready process
-pub unsafe fn schedule() {
-    let ptable = &mut *(&raw mut PTABLE);
+pub fn schedule() {
+    let mut ptable = PTABLE.lock();
 
     let cur = ptable.current;
 
@@ -78,8 +79,8 @@ pub unsafe fn schedule() {
 }
 
 // Initialize scheduler — register the idle process (kernel main)
-pub unsafe fn init() {
-    let ptable = &mut *(&raw mut PTABLE);
+pub fn init() {
+    let mut ptable = PTABLE.lock();
 
     // Process 0 = kernel/idle process
     ptable.procs[0].pid = 0;
@@ -94,7 +95,7 @@ pub unsafe fn init() {
 
 // Get current PID
 pub fn current_pid() -> u32 {
-    unsafe { (&*(&raw const PTABLE)).current_proc().pid }
+    PTABLE.lock().current_proc().pid
 }
 
 // Get schedule count
@@ -104,5 +105,5 @@ pub fn schedule_count() -> usize {
 
 // Get process count
 pub fn process_count() -> usize {
-    unsafe { (&*(&raw const PTABLE)).count }
+    PTABLE.lock().count
 }

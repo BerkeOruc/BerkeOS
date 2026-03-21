@@ -1,6 +1,8 @@
 // BerkeOS — pcspeaker.rs
 // PC Speaker Driver using PIT Channel 2
 
+use core::sync::atomic::{AtomicBool, Ordering};
+
 // PIT Registers
 const PIT_CHANNEL_2: u8 = 0x42;
 const PIT_COMMAND: u8 = 0x43;
@@ -13,10 +15,10 @@ const SPEAKER_ON_MASK: u8 = 0x03;
 // PIT frequencies
 const PIT_FREQ: u32 = 1193180;
 
-pub static mut SPEAKER_ENABLED: bool = false;
-pub static mut AUDIO_INITIALIZED: bool = false;
+pub static SPEAKER_ENABLED: AtomicBool = AtomicBool::new(false);
+pub static AUDIO_INITIALIZED: AtomicBool = AtomicBool::new(false);
 
-pub unsafe fn speaker_beep(frequency: u16, duration_ms: u16) {
+pub unsafe fn speaker_beep(frequency: u16, _duration_ms: u16) {
     if frequency == 0 {
         return;
     }
@@ -41,21 +43,21 @@ pub unsafe fn speaker_beep(frequency: u16, duration_ms: u16) {
     let port61 = SPEAKER_PORT as *mut u8;
     let current = port61.read_volatile();
     port61.write_volatile(current | SPEAKER_ON_MASK);
-    SPEAKER_ENABLED = true;
+    SPEAKER_ENABLED.store(true, Ordering::Relaxed);
 }
 
 pub unsafe fn speaker_off() {
     let port61 = SPEAKER_PORT as *mut u8;
     let current = port61.read_volatile();
     port61.write_volatile(current & !SPEAKER_ON_MASK);
-    SPEAKER_ENABLED = false;
+    SPEAKER_ENABLED.store(false, Ordering::Relaxed);
 }
 
 pub unsafe fn stop_beep_timer() {
     let port61 = SPEAKER_PORT as *mut u8;
     let current = port61.read_volatile();
     port61.write_volatile(current & !SPEAKER_ON_MASK);
-    SPEAKER_ENABLED = false;
+    SPEAKER_ENABLED.store(false, Ordering::Relaxed);
 }
 
 fn spin_wait() {
@@ -94,12 +96,12 @@ pub fn beep_error() {
 
 pub fn init_audio() -> bool {
     unsafe {
-        AUDIO_INITIALIZED = true;
         speaker_beep(880, 100);
     }
+    AUDIO_INITIALIZED.store(true, Ordering::Relaxed);
     true
 }
 
 pub fn is_audio_working() -> bool {
-    unsafe { AUDIO_INITIALIZED }
+    AUDIO_INITIALIZED.load(Ordering::Relaxed)
 }

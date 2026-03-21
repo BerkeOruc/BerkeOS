@@ -7,6 +7,7 @@ use crate::disk_io;
 use crate::font;
 use crate::framebuffer::{Color, Framebuffer};
 use crate::keyboard::{Key, Keyboard};
+use core::ops::DerefMut;
 
 // ── Color palette ─────────────────────────────────────────────────────────────
 fn col_bg() -> Color {
@@ -322,6 +323,9 @@ pub struct Shell {
     fs_ptrs: [*mut BerkeFS; 12],
 }
 
+unsafe impl Send for Shell {}
+unsafe impl Sync for Shell {}
+
 #[derive(Copy, Clone)]
 pub enum LineColor {
     Normal,
@@ -370,32 +374,32 @@ impl Shell {
         fb_h: usize,
         disk_ok: bool,
         disk_count: usize,
-        fs0: &'static mut BerkeFS,
-        fs1: &'static mut BerkeFS,
-        fs2: &'static mut BerkeFS,
-        fs3: &'static mut BerkeFS,
-        fs4: &'static mut BerkeFS,
-        fs5: &'static mut BerkeFS,
-        fs6: &'static mut BerkeFS,
-        fs7: &'static mut BerkeFS,
-        fs8: &'static mut BerkeFS,
-        fs9: &'static mut BerkeFS,
-        fs10: &'static mut BerkeFS,
-        fs11: &'static mut BerkeFS,
+        fs0: &'static mut spin::Mutex<BerkeFS>,
+        fs1: &'static mut spin::Mutex<BerkeFS>,
+        fs2: &'static mut spin::Mutex<BerkeFS>,
+        fs3: &'static mut spin::Mutex<BerkeFS>,
+        fs4: &'static mut spin::Mutex<BerkeFS>,
+        fs5: &'static mut spin::Mutex<BerkeFS>,
+        fs6: &'static mut spin::Mutex<BerkeFS>,
+        fs7: &'static mut spin::Mutex<BerkeFS>,
+        fs8: &'static mut spin::Mutex<BerkeFS>,
+        fs9: &'static mut spin::Mutex<BerkeFS>,
+        fs10: &'static mut spin::Mutex<BerkeFS>,
+        fs11: &'static mut spin::Mutex<BerkeFS>,
     ) {
         self.fs_ptrs = [
-            fs0 as *mut BerkeFS,
-            fs1 as *mut BerkeFS,
-            fs2 as *mut BerkeFS,
-            fs3 as *mut BerkeFS,
-            fs4 as *mut BerkeFS,
-            fs5 as *mut BerkeFS,
-            fs6 as *mut BerkeFS,
-            fs7 as *mut BerkeFS,
-            fs8 as *mut BerkeFS,
-            fs9 as *mut BerkeFS,
-            fs10 as *mut BerkeFS,
-            fs11 as *mut BerkeFS,
+            core::ptr::addr_of_mut!(*fs0) as *mut BerkeFS,
+            core::ptr::addr_of_mut!(*fs1) as *mut BerkeFS,
+            core::ptr::addr_of_mut!(*fs2) as *mut BerkeFS,
+            core::ptr::addr_of_mut!(*fs3) as *mut BerkeFS,
+            core::ptr::addr_of_mut!(*fs4) as *mut BerkeFS,
+            core::ptr::addr_of_mut!(*fs5) as *mut BerkeFS,
+            core::ptr::addr_of_mut!(*fs6) as *mut BerkeFS,
+            core::ptr::addr_of_mut!(*fs7) as *mut BerkeFS,
+            core::ptr::addr_of_mut!(*fs8) as *mut BerkeFS,
+            core::ptr::addr_of_mut!(*fs9) as *mut BerkeFS,
+            core::ptr::addr_of_mut!(*fs10) as *mut BerkeFS,
+            core::ptr::addr_of_mut!(*fs11) as *mut BerkeFS,
         ];
         let term_cols = (fb_w.saturating_sub(20)) / GW;
         let usable_h = fb_h.saturating_sub(26 + 26 + GH + 10);
@@ -590,7 +594,7 @@ impl Shell {
         } else {
             "BerkeFS:NO-DISK"
         };
-        let top = "BerkeOS  \u{2551}  Berke Oruc  \u{2551}  ";
+        let top = "BerkeOS  |  Berke Oruc  |  ";
         let mut buf = [0u8; 200];
         let mut i = 0;
         for &b in top.as_bytes() {
@@ -605,7 +609,7 @@ impl Shell {
                 i += 1;
             }
         }
-        for &b in "  \u{2551}  F1=Help  F2=Clear  F5=neofetch".as_bytes() {
+        for &b in "  |  F1=Help  F2=Clear  F5=neofetch".as_bytes() {
             if i < 200 {
                 buf[i] = b;
                 i += 1;
@@ -614,7 +618,7 @@ impl Shell {
         fb.draw_string(
             8,
             4,
-            core::str::from_utf8(&buf[..i]).unwrap_or("BerkeOS v0.6.1"),
+            core::str::from_utf8(&buf[..i]).unwrap_or("BerkeOS v0.6.2"),
             col_ltpnk(),
             col_dkpnk(),
         );
@@ -1045,157 +1049,57 @@ impl Shell {
 
     // ── Commands ──────────────────────────────────────────────────────────────
 
-    // YARDIM — help command / Yardim maskesi gosterir
-    // Tum komutlari listeler - shows all avaliable commands
-    // ASCII box cizgileri ile guzel bir yardim menusu
+    // help command - shows all available commands
     fn cmd_help(&mut self) {
         self.empty_line();
-        self.println(
-            "╔═══════════════════════════════════════════════════════════╗",
-            LineColor::Info,
-        );
-        self.println(
-            "║  BerkeOS v0.6.1                                           ║",
-            LineColor::Info,
-        );
-        self.println(
-            "║  Developer: Berke Oruc                                    ║",
-            LineColor::Info,
-        );
-        self.println(
-            "╚═══════════════════════════════════════════════════════════╝",
-            LineColor::Info,
-        );
+        self.println("  BerkeOS v0.6.2", LineColor::Info);
+        self.println("  Developer: Berke Oruc", LineColor::Info);
         self.empty_line();
-        self.println("STRUCTURE: Monolithic Kernel (x86_64)", LineColor::Normal);
+        self.println("  STRUCTURE: Monolithic Kernel (x86_64)", LineColor::Normal);
+        self.println("  LANG: Rust (no_std)", LineColor::Normal);
+        self.println("  LINES: ~14,288", LineColor::Normal);
+        self.empty_line();
+
+        self.println("  [NAVIGATION]", LineColor::Gold);
+        self.println("  cd <path>     - change directory", LineColor::Normal);
         self.println(
-            "LANG: Rust (no_std)                                         ",
+            "  pwd           - print working directory",
+            LineColor::Normal,
+        );
+        self.println("  ls / dir      - list directory", LineColor::Normal);
+        self.empty_line();
+
+        self.println("  [FILE OPERATIONS]", LineColor::Gold);
+        self.println("  cat <file>    - read file", LineColor::Normal);
+        self.println("  touch <file>  - create file", LineColor::Normal);
+        self.println("  mkdir <dir>   - create directory", LineColor::Normal);
+        self.println("  rm <file>     - delete file", LineColor::Normal);
+        self.println("  cp <src> <dst> - copy file", LineColor::Normal);
+        self.println("  mv <src> <dst> - move/rename", LineColor::Normal);
+        self.empty_line();
+
+        self.println("  [EDITOR]", LineColor::Gold);
+        self.println("  deno <file>   - Deno Text Editor", LineColor::Normal);
+        self.empty_line();
+
+        self.println("  [SYSTEM]", LineColor::Gold);
+        self.println(
+            "  help / ver / uptime / mem / date / df / sysinfo",
             LineColor::Normal,
         );
         self.println(
-            "LINES: ~14,288                                               ",
+            "  reboot / halt / about / neofetch / uname",
             LineColor::Normal,
         );
         self.empty_line();
 
-        self.println(
-            "╔══ NAVIGATION ══════════════════════════════════════════════╗",
-            LineColor::Gold,
-        );
-        self.println(
-            "║ cd <path>     - change directory                        ║",
-            LineColor::Normal,
-        );
-        self.println(
-            "║ pwd          - print working directory                  ║",
-            LineColor::Normal,
-        );
-        self.println(
-            "║ ls / dir     - list directory                           ║",
-            LineColor::Normal,
-        );
-        self.println(
-            "╚════════════════════════════════════════════════════════════╝",
-            LineColor::Gold,
-        );
+        self.println("  [HARDWARE]", LineColor::Gold);
+        self.println("  drives        - list drives", LineColor::Normal);
         self.empty_line();
 
-        self.println(
-            "╔══ FILE OPERATIONS ══════════════════════════════════════════╗",
-            LineColor::Gold,
-        );
-        self.println(
-            "║ cat <file>    - read file                               ║",
-            LineColor::Normal,
-        );
-        self.println(
-            "║ touch <file> - create file                             ║",
-            LineColor::Normal,
-        );
-        self.println(
-            "║ mkdir <dir>  - create directory                        ║",
-            LineColor::Normal,
-        );
-        self.println(
-            "║ rm <file>    - delete file                             ║",
-            LineColor::Normal,
-        );
-        self.println(
-            "║ cp <src> <dst> - copy file                              ║",
-            LineColor::Normal,
-        );
-        self.println(
-            "║ mv <src> <dst> - move/rename                            ║",
-            LineColor::Normal,
-        );
-        self.println(
-            "╚════════════════════════════════════════════════════════════╝",
-            LineColor::Gold,
-        );
-        self.empty_line();
-
-        self.println(
-            "╔══ EDITOR ═══════════════════════════════════════════════════╗",
-            LineColor::Gold,
-        );
-        self.println(
-            "║ deno <file> - Deno Text Editor                          ║",
-            LineColor::Normal,
-        );
-        self.println(
-            "╚════════════════════════════════════════════════════════════╝",
-            LineColor::Gold,
-        );
-        self.empty_line();
-
-        self.println(
-            "╔══ SYSTEM ════════════════════════════════════════════════════╗",
-            LineColor::Gold,
-        );
-        self.println(
-            "║ help / ver / uptime / mem / date / df / sysinfo          ║",
-            LineColor::Normal,
-        );
-        self.println(
-            "║ reboot / halt / about / neofetch / uname                  ║",
-            LineColor::Normal,
-        );
-        self.println(
-            "╚════════════════════════════════════════════════════════════╝",
-            LineColor::Gold,
-        );
-        self.empty_line();
-
-        self.println(
-            "╔══ HARDWARE ═══════════════════════════════════════════════════╗",
-            LineColor::Gold,
-        );
-        self.println(
-            "║ drives       - list drives                                ║",
-            LineColor::Normal,
-        );
-        self.println(
-            "╚════════════════════════════════════════════════════════════╝",
-            LineColor::Gold,
-        );
-        self.empty_line();
-
-        self.println(
-            "╔══ UTILITIES ═════════════════════════════════════════════════╗",
-            LineColor::Gold,
-        );
-        self.println(
-            "║ calc <expr>  - calculator                                ║",
-            LineColor::Normal,
-        );
-        self.println(
-            "║ update      - show planned features                     ║",
-            LineColor::Normal,
-        );
-        self.println(
-            "╚════════════════════════════════════════════════════════════╝",
-            LineColor::Gold,
-        );
+        self.println("  [UTILITIES]", LineColor::Gold);
+        self.println("  calc <expr>   - calculator", LineColor::Normal);
+        self.println("  update        - show planned features", LineColor::Normal);
         self.empty_line();
     }
 
@@ -1208,26 +1112,13 @@ impl Shell {
 
     fn cmd_drives(&mut self) {
         self.empty_line();
+        self.println("  BerkeFS Drives", LineColor::Gold);
         self.println(
-            "  ╔══════════════════════════════════════════════════════════╗",
+            "  ------------------------------------------------",
             LineColor::Gold,
         );
-        self.println(
-            "  ║              BerkeFS Drives                               ║",
-            LineColor::Gold,
-        );
-        self.println(
-            "  ╠═══════════╦═══════════╦════════════════════════════════╣",
-            LineColor::Gold,
-        );
-        self.println(
-            "  ║ Drive     ║ Turu      ║ Durum                            ║",
-            LineColor::Gold,
-        );
-        self.println(
-            "  ╠═══════════╬═══════════╬════════════════════════════════╣",
-            LineColor::Gold,
-        );
+        self.println("  Drive     Type       Status", LineColor::Gold);
+        self.println("  ------    ----       ------", LineColor::Gold);
 
         let mut count = 0;
         for i in 0..MAX_DRIVES {
@@ -1244,15 +1135,15 @@ impl Shell {
             let name = DriveId::from_u8(i as u8).name();
             let is_current = self.path.drive.to_u8() as usize == i;
 
-            let type_str: &[u8] = match drive_type {
-                DriveType::RamDisk => b"RAM Disk  ",
-                DriveType::Formatted => b"Disk     ",
+            let type_str: &str = match drive_type {
+                DriveType::RamDisk => "RAM Disk",
+                DriveType::Formatted => "Disk",
                 _ => continue,
             };
 
             let mut line_buf = [0u8; 64];
             let mut li = 0;
-            let pfx = "  \u{2551} ";
+            let pfx = "  ";
             for &b in pfx.as_bytes() {
                 line_buf[li] = b;
                 li += 1;
@@ -1265,26 +1156,26 @@ impl Shell {
                 }
             }
 
-            let sep1 = " \u{2551} ";
+            let sep1 = "  ";
             for &b in sep1.as_bytes() {
                 line_buf[li] = b;
                 li += 1;
             }
 
-            for &b in type_str {
+            for &b in type_str.as_bytes() {
                 if li < 25 {
                     line_buf[li] = b;
                     li += 1;
                 }
             }
 
-            let sep2 = " \u{2551} ";
+            let sep2 = "  ";
             for &b in sep2.as_bytes() {
                 line_buf[li] = b;
                 li += 1;
             }
 
-            for &b in b"Hazir" {
+            for &b in b"Ready" {
                 if li < 60 {
                     line_buf[li] = b;
                     li += 1;
@@ -1302,26 +1193,14 @@ impl Shell {
                 line_buf[li] = b' ';
                 li += 1;
             }
-            let end = " \u{2551}";
-            for &b in end.as_bytes() {
-                line_buf[li] = b;
-                li += 1;
-            }
 
             self.push_line(&line_buf[..li], LineColor::Success);
         }
 
         if count == 0 {
-            self.println(
-                "  ║  No drives found.                                      ║",
-                LineColor::Info,
-            );
+            self.println("  No drives found.", LineColor::Info);
         }
 
-        self.println(
-            "  ╚═══════════╩═══════════╩════════════════════════════════╝",
-            LineColor::Gold,
-        );
         self.empty_line();
     }
 
@@ -1625,11 +1504,11 @@ impl Shell {
 
             if state == DriveType::Formatted && fs.mounted {
             } else if state == DriveType::Named {
-                self.println("  (adlandirilmis surucu - 'format' yazin)", LineColor::Info);
+                self.println("  (Named drive - type 'format')", LineColor::Info);
             } else if state == DriveType::Formatted {
-                self.println("  (disk baglanmadi)", LineColor::Info);
+                self.println("  (Disk not mounted)", LineColor::Info);
             } else {
-                self.println("  (bos surucu)", LineColor::Info);
+                self.println("  (Empty drive)", LineColor::Info);
             }
         }
     }
@@ -1700,11 +1579,11 @@ impl Shell {
             return;
         }
         if !self.on_berkefs() {
-            self.println("  Hata: Dosya sistemi baglanmamis", LineColor::Error);
+            self.println("  Error: Filesystem not mounted", LineColor::Error);
             return;
         }
         if !fs.mounted {
-            self.println("  Hata: Dosya sistemi baglanmamis", LineColor::Error);
+            self.println("  Error: Filesystem not mounted", LineColor::Error);
             return;
         }
         let mut fp = [0u8; 64];
@@ -1737,11 +1616,11 @@ impl Shell {
         }
         let data = if di < arg.len() { &arg[di..] } else { b"" };
         if !self.on_berkefs() {
-            self.println("  Hata: Dosya sistemi baglanmamis", LineColor::Error);
+            self.println("  Error: Filesystem not mounted", LineColor::Error);
             return;
         }
         if !fs.mounted {
-            self.println("  Hata: Dosya sistemi baglanmamis", LineColor::Error);
+            self.println("  Error: Filesystem not mounted", LineColor::Error);
             return;
         }
         let mut fp = [0u8; 64];
@@ -1768,11 +1647,11 @@ impl Shell {
             return;
         }
         if !self.on_berkefs() {
-            self.println("  Hata: Dosya sistemi baglanmamis", LineColor::Error);
+            self.println("  Error: Filesystem not mounted", LineColor::Error);
             return;
         }
         if !fs.mounted {
-            self.println("  Hata: Dosya sistemi baglanmamis", LineColor::Error);
+            self.println("  Error: Filesystem not mounted", LineColor::Error);
             return;
         }
         let mut fp = [0u8; 64];
@@ -1798,11 +1677,11 @@ impl Shell {
             return;
         }
         if !self.on_berkefs() {
-            self.println("  Hata: Dosya sistemi baglanmamis", LineColor::Error);
+            self.println("  Error: Filesystem not mounted", LineColor::Error);
             return;
         }
         if !fs.mounted {
-            self.println("  Hata: Dosya sistemi baglanmamis", LineColor::Error);
+            self.println("  Error: Filesystem not mounted", LineColor::Error);
             return;
         }
         let mut fp = [0u8; 64];
@@ -1839,7 +1718,7 @@ impl Shell {
             return;
         }
         if !self.on_berkefs() || !fs.mounted {
-            self.println("  Hata: Dosya sistemi baglanmamis", LineColor::Error);
+            self.println("  Error: Filesystem not mounted", LineColor::Error);
             return;
         }
         let mut sfp = [0u8; 64];
@@ -1883,7 +1762,7 @@ impl Shell {
             return;
         }
         if !self.on_berkefs() || !fs.mounted {
-            self.println("  Hata: Dosya sistemi baglanmamis", LineColor::Error);
+            self.println("  Error: Filesystem not mounted", LineColor::Error);
             return;
         }
         let mut sfp = [0u8; 64];
@@ -1918,7 +1797,7 @@ impl Shell {
             return;
         }
         if !self.on_berkefs() || !fs.mounted {
-            self.println("  Hata: Dosya sistemi baglanmamis", LineColor::Error);
+            self.println("  Error: Filesystem not mounted", LineColor::Error);
             return;
         }
         self.empty_line();
@@ -1972,7 +1851,7 @@ impl Shell {
             return;
         }
         if !self.on_berkefs() || !fs.mounted {
-            self.println("  Hata: Dosya sistemi baglanmamis", LineColor::Error);
+            self.println("  Error: Filesystem not mounted", LineColor::Error);
             return;
         }
         let mut fp = [0u8; 64];
@@ -2029,108 +1908,49 @@ impl Shell {
 
     fn cmd_fsinfo(&mut self, fs: &mut BerkeFS) {
         self.empty_line();
+        self.println("  BerkeFS Information", LineColor::Gold);
         self.println(
-            "  ╔══════════════════════════════════════════════════════════╗",
-            LineColor::Gold,
-        );
-        self.println(
-            "  ║  BerkeFS Information                                      ║",
-            LineColor::Gold,
-        );
-        self.println(
-            "  ╠══════════════════════════════════════════════════════════╣",
+            "  ----------------------------------------------",
             LineColor::Gold,
         );
         if !self.disk_ok {
-            self.println(
-                "  ║  Depolama ayg\u{131}t\u{131} alg\u{131}lanamad\u{131}                               ║",
-                LineColor::Error,
-            );
+            self.println("  Storage device not detected", LineColor::Error);
         } else if !fs.mounted {
-            self.println(
-                "  ║  Disk found but not formatted                           ║",
-                LineColor::Yellow,
-            );
-            self.println(
-                "  ║  Type 'format' to initialize BerkeFS                   ║",
-                LineColor::Info,
-            );
+            self.println("  Disk found but not formatted", LineColor::Yellow);
+            self.println("  Type 'format' to initialize BerkeFS", LineColor::Info);
         } else {
-            self.println(
-                "  ║  Status   : Mounted \u{2714}                                  ║",
-                LineColor::Success,
-            );
-            self.println(
-                "  ║  Magic    : 0xBE4BEF55                                ║",
-                LineColor::Normal,
-            );
-            self.println(
-                "  ║  Version  : v3 (Improved)                             ║",
-                LineColor::Normal,
-            );
-            self.println(
-                "  ║  Inodes   : 32 slots                                   ║",
-                LineColor::Normal,
-            );
-            self.println(
-                "  ║  DataBlks : 128 blocks (64 KiB)                       ║",
-                LineColor::Normal,
-            );
+            self.println("  Status   : Mounted", LineColor::Success);
+            self.println("  Magic    : 0xBE4BEF55", LineColor::Normal);
+            self.println("  Version  : v3 (Improved)", LineColor::Normal);
+            self.println("  Inodes   : 32 slots", LineColor::Normal);
+            self.println("  DataBlks : 128 blocks (64 KiB)", LineColor::Normal);
             let used = fs.used_inodes();
             let free = fs.free_blocks();
+            let mut u_buf = [0u8; 32];
+            let u_len = write_uint_buf(&mut u_buf, 0, used);
             let mut u_line = [0u8; 80];
-            let u_pfx = "  ║  Files    : ";
-            let mut ui = 0;
-            for &b in u_pfx.as_bytes() {
-                if ui < 80 {
-                    u_line[ui] = b;
-                    ui += 1;
-                }
-            }
-            let mut nb = [0u8; 8];
-            let nn = write_uint_buf(&mut nb, 0, used);
-            for &b in &nb[..nn] {
-                if ui < 80 {
-                    u_line[ui] = b;
-                    ui += 1;
-                }
-            }
-            for &b in " used                                                     ║".as_bytes() {
-                if ui < 80 {
-                    u_line[ui] = b;
-                    ui += 1;
-                }
-            }
-            self.push_line(&u_line[..ui], LineColor::Normal);
+            let pfx = b"  Files    : ";
+            u_line[..pfx.len()].copy_from_slice(pfx);
+            u_line[pfx.len()..pfx.len() + u_len].copy_from_slice(&u_buf[..u_len]);
+            let suffix = b" used";
+            u_line[pfx.len() + u_len..pfx.len() + u_len + suffix.len()].copy_from_slice(suffix);
+            self.push_line(
+                &u_line[..pfx.len() + u_len + suffix.len()],
+                LineColor::Normal,
+            );
+            let mut f_buf = [0u8; 32];
+            let f_len = write_uint_buf(&mut f_buf, 0, free);
             let mut f_line = [0u8; 80];
-            let f_pfx = "  ║  FreeBlk  : ";
-            let mut fi = 0;
-            for &b in f_pfx.as_bytes() {
-                if fi < 80 {
-                    f_line[fi] = b;
-                    fi += 1;
-                }
-            }
-            let mut fb2 = [0u8; 8];
-            let fn2 = write_uint_buf(&mut fb2, 0, free);
-            for &b in &fb2[..fn2] {
-                if fi < 80 {
-                    f_line[fi] = b;
-                    fi += 1;
-                }
-            }
-            for &b in " free                                                     ║".as_bytes() {
-                if fi < 80 {
-                    f_line[fi] = b;
-                    fi += 1;
-                }
-            }
-            self.push_line(&f_line[..fi], LineColor::Normal);
+            let fpfx = b"  FreeBlk  : ";
+            f_line[..fpfx.len()].copy_from_slice(fpfx);
+            f_line[fpfx.len()..fpfx.len() + f_len].copy_from_slice(&f_buf[..f_len]);
+            let fsuffix = b" free";
+            f_line[fpfx.len() + f_len..fpfx.len() + f_len + fsuffix.len()].copy_from_slice(fsuffix);
+            self.push_line(
+                &f_line[..fpfx.len() + f_len + fsuffix.len()],
+                LineColor::Normal,
+            );
         }
-        self.println(
-            "  ╚══════════════════════════════════════════════════════════╝",
-            LineColor::Gold,
-        );
     }
 
     fn cmd_format(&mut self, arg: &[u8], fs: &mut BerkeFS) {
@@ -2246,7 +2066,7 @@ impl Shell {
         let mut msg_buf = [0u8; 80];
         let mut mi = 0;
 
-        let pfx = b"  Olusturuldu: ";
+        let pfx = b"  Created: ";
         for &b in pfx {
             if mi < 80 {
                 msg_buf[mi] = b;
@@ -2528,53 +2348,26 @@ impl Shell {
         match subcmd_type {
             0 | 3 => {
                 self.empty_line();
-                self.println("  \u{2554}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2557}", LineColor::Info);
+                self.println("  Hardware Status", LineColor::Info);
                 self.println(
-                    "  \u{2551}  Hardware Status                            \u{2551}",
+                    "  ----------------------------------------",
                     LineColor::Info,
                 );
-                self.println("  \u{2560}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2563}", LineColor::Info);
 
                 if self.disk_ok {
-                    self.println(
-                        "  \u{2551}  ATA Disk     : Detected \u{2714}                \u{2551}",
-                        LineColor::Success,
-                    );
-                    self.println(
-                        "  \u{2551}  BerkeFS     : Active                       \u{2551}",
-                        LineColor::Success,
-                    );
+                    self.println("  ATA Disk     : Detected", LineColor::Success);
+                    self.println("  BerkeFS     : Active", LineColor::Success);
                 } else {
-                    self.println(
-                        "  \u{2551}  ATA Disk     : Not detected                \u{2551}",
-                        LineColor::Yellow,
-                    );
+                    self.println("  ATA Disk     : Not detected", LineColor::Yellow);
                 }
 
                 self.println(
-                    "  \u{2551}  AHCI        : Available (run 'dev test ahci')\u{2551}",
+                    "  AHCI        : Available (run 'dev test ahci')",
                     LineColor::Normal,
                 );
-
-                self.println(
-                    "  \u{2551}  Keyboard    : PS/2 Ready \u{2714}                \u{2551}",
-                    LineColor::Success,
-                );
-
-                self.println(
-                    "  \u{2551}  RTC         : Real-time clock \u{2714}          \u{2551}",
-                    LineColor::Success,
-                );
-
-                self.println(
-                    "  \u{2551}  Timer       : PIT 100Hz \u{2714}               \u{2551}",
-                    LineColor::Success,
-                );
-
-                self.println(
-                    "  \u{255A}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{255D}",
-                    LineColor::Info,
-                );
+                self.println("  Keyboard    : PS/2 Ready", LineColor::Success);
+                self.println("  RTC         : Real-time clock", LineColor::Success);
+                self.println("  Timer       : PIT 100Hz", LineColor::Success);
                 self.empty_line();
                 self.println(
                     "  Usage: dev list | dev test | dev test ata | dev test ahci",
@@ -2610,10 +2403,7 @@ impl Shell {
                         self.println("  \u{2714} ATA: Disk detected", LineColor::Success);
                         self.println("  \u{2714} ATA: BerkeFS mounted", LineColor::Success);
                     } else {
-                        self.println(
-                            "  \u{2717} ATA: Depolama ayg\u{131}t\u{131} alg\u{131}lanamad\u{131}",
-                            LineColor::Error,
-                        );
+                        self.println("  ATA: Storage device not detected", LineColor::Error);
                     }
                 }
 
@@ -2971,33 +2761,16 @@ impl Shell {
 
     fn cmd_mem(&mut self) {
         self.empty_line();
-        self.println("  \u{2554}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2557}", LineColor::Info);
+        self.println("  Memory Information", LineColor::Info);
         self.println(
-            "  \u{2551}  Memory Information                    \u{2551}",
+            "  ----------------------------------------",
             LineColor::Info,
         );
-        self.println("  \u{2560}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2563}", LineColor::Info);
-        self.println(
-            "  \u{2551}  Total RAM    : 256 MiB (QEMU)         \u{2551}",
-            LineColor::Normal,
-        );
-        self.println(
-            "  \u{2551}  Mapped       : 4 GiB identity-mapped  \u{2551}",
-            LineColor::Normal,
-        );
-        self.println(
-            "  \u{2551}  Page size    : 2 MiB huge pages       \u{2551}",
-            LineColor::Normal,
-        );
-        self.println(
-            "  \u{2551}  Kernel stack : 64 KiB                 \u{2551}",
-            LineColor::Normal,
-        );
-        self.println(
-            "  \u{2551}  BerkeFS      : 33 KiB on disk         \u{2551}",
-            LineColor::Success,
-        );
-        self.println("  \u{255A}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{255D}", LineColor::Info);
+        self.println("  Total RAM    : 256 MiB (QEMU)", LineColor::Normal);
+        self.println("  Mapped       : 4 GiB identity-mapped", LineColor::Normal);
+        self.println("  Page size    : 2 MiB huge pages", LineColor::Normal);
+        self.println("  Kernel stack : 64 KiB", LineColor::Normal);
+        self.println("  BerkeFS      : 33 KiB on disk", LineColor::Success);
     }
 
     fn cmd_color(&mut self) {
@@ -3014,12 +2787,46 @@ impl Shell {
 
     fn cmd_banner(&mut self) {
         self.empty_line();
-        self.println("  \u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2557} \u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2557}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2557} \u{2588}\u{2588}\u{2557}  \u{2588}\u{2588}\u{2557}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2557} \u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2557} \u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2557}", LineColor::Success);
-        self.println("  \u{2588}\u{2588}\u{2554}\u{2550}\u{2550}\u{2588}\u{2588}\u{2557}\u{2588}\u{2588}\u{2554}\u{2550}\u{2550}\u{2550}\u{2550}\u{255D}\u{2588}\u{2588}\u{2554}\u{2550}\u{2550}\u{2588}\u{2588}\u{2557}\u{2588}\u{2588}\u{2551} \u{2588}\u{2588}\u{2554}\u{255D}\u{2588}\u{2588}\u{2554}\u{2550}\u{2550}\u{2550}\u{2550}\u{255D}\u{2588}\u{2588}\u{2554}\u{2550}\u{2550}\u{2550}\u{2588}\u{2588}\u{2557}\u{2588}\u{2588}\u{2554}\u{2550}\u{2550}\u{2550}\u{2550}\u{255D}", LineColor::Success);
-        self.println("  \u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2554}\u{255D}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2557}  \u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2554}\u{255D}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2554}\u{255D} \u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2557}  \u{2588}\u{2588}\u{2551}   \u{2588}\u{2588}\u{2551}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2557}", LineColor::Info);
-        self.println("  \u{2588}\u{2588}\u{2554}\u{2550}\u{2550}\u{2588}\u{2588}\u{2557}\u{2588}\u{2588}\u{2554}\u{2550}\u{2550}\u{255D}  \u{2588}\u{2588}\u{2554}\u{2550}\u{2550}\u{2588}\u{2588}\u{2557}\u{2588}\u{2588}\u{2554}\u{2550}\u{2588}\u{2588}\u{2557} \u{2588}\u{2588}\u{2554}\u{2550}\u{2550}\u{255D}  \u{2588}\u{2588}\u{2551}   \u{2588}\u{2588}\u{2551}\u{255A}\u{2550}\u{2550}\u{2550}\u{2550}\u{2588}\u{2588}\u{2551}", LineColor::Info);
-        self.println("  \u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2554}\u{255D}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2557}\u{2588}\u{2588}\u{2551}  \u{2588}\u{2588}\u{2551}\u{2588}\u{2588}\u{2551}  \u{2588}\u{2588}\u{2557}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2557}\u{255A}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2554}\u{255D}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2551}", LineColor::Success);
-        self.println("  \u{255A}\u{2550}\u{2550}\u{2550}\u{2550}\u{255D} \u{255A}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{255D}\u{255A}\u{2550}\u{255D}  \u{255A}\u{2550}\u{255D}\u{255A}\u{2550}\u{255D}  \u{255A}\u{2550}\u{255D}\u{255A}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{255D} \u{255A}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{255D} \u{255A}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{255D}", LineColor::Success);
+        self.println(
+            "  8 888888888o   8 8888888888   8 888888888o.   8 8888     ,88'  8 8888888888",
+            LineColor::Success,
+        );
+        self.println(
+            "  8 8888    `88. 8 8888         8 8888    `88.  8 8888    ,88'  8 8888",
+            LineColor::Info,
+        );
+        self.println(
+            "  8 8888     `88 8 8888         8 8888     `88  8 8888   ,88'   8 8888",
+            LineColor::Success,
+        );
+        self.println(
+            "  8 8888     ,88 8 8888         8 8888     ,88  8 8888  ,88'    8 888888888888",
+            LineColor::Info,
+        );
+        self.println(
+            "  8 8888.   ,88' 8 888888888888 8 8888.   ,88'  8 8888 ,88'     8 8888",
+            LineColor::Success,
+        );
+        self.println(
+            "  8 8888888888   8 8888         8 888888888P'   8 8888 88'      8 888888888888",
+            LineColor::Info,
+        );
+        self.println(
+            "  8 8888    `88. 8 8888         8 8888`8b       8 888888<       8 8888",
+            LineColor::Success,
+        );
+        self.println(
+            "  8 8888      88 8 8888         8 8888 `8b.     8 8888 `Y8.     8 8888",
+            LineColor::Info,
+        );
+        self.println(
+            "  8 8888    ,88' 8 8888         8 8888   `8b.   8 8888   `Y8.   8 8888",
+            LineColor::Info,
+        );
+        self.println(
+            "  8 888888888P   8 888888888888 8 8888     `88. 8 8888     `Y8. 8 888888888888",
+            LineColor::Success,
+        );
         self.empty_line();
         self.println(
             "  BerkeOS  |  Berke Oruc  |  Rust  |  x86_64",
@@ -3123,49 +2930,26 @@ impl Shell {
 
     fn cmd_sysinfo(&mut self) {
         self.empty_line();
-        self.println("  \u{2554}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2557}", LineColor::Info);
+        self.println("  BerkeOS System Information", LineColor::Info);
         self.println(
-            "  \u{2551}  BerkeOS System Information                \u{2551}",
+            "  ----------------------------------------",
             LineColor::Info,
         );
-        self.println("  \u{2560}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2563}", LineColor::Info);
+        self.println("  OS       : BerkeOS v0.6.2", LineColor::Normal);
+        self.println("  Arch     : x86_64 bare metal", LineColor::Normal);
+        self.println("  Language : Rust nightly (no_std)", LineColor::Normal);
+        self.println("  Boot     : UEFI/BIOS", LineColor::Normal);
         self.println(
-            "  \u{2551}  OS       : BerkeOS v0.6.1                   \u{2551}",
-            LineColor::Normal,
-        );
-        self.println(
-            "  \u{2551}  Arch     : x86_64 bare metal                \u{2551}",
-            LineColor::Normal,
-        );
-        self.println(
-            "  \u{2551}  Language : Rust nightly (no_std)            \u{2551}",
-            LineColor::Normal,
-        );
-        self.println(
-            "  \u{2551}  Boot     : UEFI/BIOS                        \u{2551}",
-            LineColor::Normal,
-        );
-        self.println(
-            "  \u{2551}  FS       : BerkeFS (ATA PIO, persistent)    \u{2551}",
+            "  FS       : BerkeFS (ATA PIO, persistent)",
             LineColor::Success,
         );
+        self.println("  Drives   : (use 'drives' command)", LineColor::Gold);
+        self.println("  IRQ      : IDT + PIC 8259 + PIT 100Hz", LineColor::Info);
         self.println(
-            "  \u{2551}  Drives   : (use 'drives' command)            \u{2551}",
-            LineColor::Gold,
-        );
-        self.println(
-            "  \u{2551}  IRQ      : IDT + PIC 8259 + PIT 100Hz       \u{2551}",
-            LineColor::Info,
-        );
-        self.println(
-            "  \u{2551}  Memory   : 4 GiB mapped (2 MiB huge pages)  \u{2551}",
+            "  Memory   : 4 GiB mapped (2 MiB huge pages)",
             LineColor::Normal,
         );
-        self.println(
-            "  \u{2551}  Author   : Berke Oruc, Age 16               \u{2551}",
-            LineColor::Gold,
-        );
-        self.println("  \u{255A}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{255D}", LineColor::Info);
+        self.println("  Author   : Berke Oruc, Age 16", LineColor::Gold);
     }
 
     fn cmd_phase(&mut self) {
@@ -3179,7 +2963,7 @@ impl Shell {
     fn cmd_neofetch(&mut self) {
         self.empty_line();
         self.println("  berke@BerkeOS", LineColor::Success);
-        self.println("  \u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}", LineColor::Normal);
+        self.println("  --------------------------------", LineColor::Normal);
         self.println("  OS       : BerkeOS", LineColor::Info);
         self.println("  Kernel   : berkeos", LineColor::Normal);
         self.println("  Shell    : berkesh", LineColor::Normal);
@@ -3190,21 +2974,23 @@ impl Shell {
 
     fn cmd_matrix(&mut self) {
         self.empty_line();
-        self.println("  \u{2554}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2557}", LineColor::Success);
         self.println(
-            "  \u{2551}  MATRIX MODE - Follow the white rabbit...  \u{2551}",
+            "  MATRIX MODE - Follow the white rabbit...",
             LineColor::Success,
         );
-        self.println("  \u{255A}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{255D}", LineColor::Success);
+        self.println(
+            "  ----------------------------------------",
+            LineColor::Success,
+        );
         self.empty_line();
 
-        // Matrix rain characters
+        // Matrix rain characters (ASCII fallback)
         let matrix_chars = [
-            "\u{30A0}\u{30A1}\u{30A2}\u{30A3}\u{30A4}\u{30A5}\u{30A6}\u{30A7}\u{30A8}\u{30A9}",
-            "\u{30AA}\u{30AB}\u{30AC}\u{30AD}\u{30AE}\u{30AF}\u{30B0}\u{30B1}\u{30B2}\u{30B3}",
-            "\u{30B4}\u{30B5}\u{30B6}\u{30B7}\u{30B8}\u{30B9}\u{30BA}\u{30BB}\u{30BC}\u{30BD}",
-            "\u{4E00}\u{4E01}\u{4E02}\u{4E03}\u{4E04}\u{4E05}\u{4E06}\u{4E07}\u{4E08}\u{4E09}",
-            "01\u{2081}\u{2082}\u{2083}\u{2084}\u{2085}\u{2086}\u{2087}\u{2088}\u{2089}",
+            "0123456789",
+            "ABCDEFGHIJ",
+            "KLMNOPQRST",
+            "abcdefghij",
+            "klmnopqrst",
         ];
 
         for i in 0..8 {
@@ -3231,85 +3017,50 @@ impl Shell {
 
     fn cmd_snake(&mut self) {
         self.empty_line();
-        self.println("  \u{2554}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2557}", LineColor::Gold);
+        self.println("  SNAKE - Classic game coming soon!", LineColor::Gold);
         self.println(
-            "  \u{2551}  SNAKE - Classic game coming soon!      \u{2551}",
+            "  ----------------------------------------",
             LineColor::Gold,
         );
-        self.println("  \u{255A}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{255D}", LineColor::Gold);
         self.empty_line();
 
         // ASCII snake game preview
-        self.println(
-            "       \u{2588}\u{2588}\u{2588}\u{2588}\u{2588}     ",
-            LineColor::Success,
-        );
-        self.println(
-            "    \u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}  ",
-            LineColor::Success,
-        );
-        self.println(
-            "  \u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588} ",
-            LineColor::Success,
-        );
-        self.println(
-            "    \u{2588}\u{2588} \u{25CF} \u{2588}\u{2588}\u{2588} ",
-            LineColor::Success,
-        );
-        self.println(
-            "       \u{2588}\u{2588}\u{2588}\u{2588}\u{2588}     ",
-            LineColor::Success,
-        );
+        self.println("       *****     ", LineColor::Success);
+        self.println("    *******  ", LineColor::Success);
+        self.println("  ********* ", LineColor::Success);
+        self.println("    ** * *** ", LineColor::Success);
+        self.println("       *****     ", LineColor::Success);
 
         self.empty_line();
         self.println("  Use arrow keys to control the snake.", LineColor::Info);
-        self.println("  Eat food (\u{25CF}) to grow and score!", LineColor::Info);
+        self.println("  Eat food to grow and score!", LineColor::Info);
         self.println("  Not yet added - coming soon!", LineColor::Warning);
     }
 
     fn cmd_ascii(&mut self) {
         self.empty_line();
-        self.println("  \u{2554}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2557}", LineColor::Info);
+        self.println("  ASCII Art Gallery", LineColor::Info);
         self.println(
-            "  \u{2551}  ASCII Art Gallery                       \u{2551}",
+            "  ----------------------------------------",
             LineColor::Info,
         );
-        self.println("  \u{255A}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{255D}", LineColor::Info);
         self.empty_line();
 
         // BerkeOS logo
-        self.println("       _ \u{250C}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2510}_", LineColor::Info);
-        self.println(
-            "      | | \u{2502}     BerkeOS     \u{2502}| |",
-            LineColor::Info,
-        );
-        self.println(
-            "      | | \u{2502}  x86_64/Rust  \u{2502}| |",
-            LineColor::Info,
-        );
-        self.println("      |_| \u{2514}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2518}_", LineColor::Info);
+        self.println("       _ .--------. _", LineColor::Info);
+        self.println("      | | BerkeOS | |", LineColor::Info);
+        self.println("      | | x86_64  | |", LineColor::Info);
+        self.println("      |_|----------|_|", LineColor::Info);
 
         self.empty_line();
 
         // Robot
-        self.println("        \u{2588}\u{2588}\u{2588}", LineColor::Yellow);
-        self.println(
-            "      \u{2588}\u{2588}\u{2588}\u{2588}\u{2588}",
-            LineColor::Yellow,
-        );
-        self.println(
-            "    \u{2588}\u{2588} \u{2665} \u{2588}\u{2588}",
-            LineColor::Yellow,
-        );
-        self.println(
-            "      \u{2588}\u{2588}\u{2588}\u{2588}\u{2588}",
-            LineColor::Yellow,
-        );
-        self.println(
-            "     \u{2588}  \u{2588}\u{2588}  \u{2588}",
-            LineColor::Yellow,
-        );
-        self.println("    \u{2588}   \u{2588}   \u{2588}", LineColor::Yellow);
+        self.println("        ***", LineColor::Yellow);
+        self.println("      *****", LineColor::Yellow);
+        self.println("    ** * **", LineColor::Yellow);
+        self.println("      *****", LineColor::Yellow);
+        self.println("     ** ***", LineColor::Yellow);
+        self.println("    **   **", LineColor::Yellow);
 
         self.empty_line();
         self.println("  More art: 'banner <text>'", LineColor::Info);
@@ -3349,35 +3100,19 @@ impl Shell {
 
     fn cmd_fire(&mut self) {
         self.empty_line();
-        self.println("  \u{2554}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2557}", LineColor::Error);
+        self.println("  ASCII Fire Effect", LineColor::Error);
         self.println(
-            "  \u{2551}  ASCII Fire Effect                    \u{2551}",
+            "  ----------------------------------------",
             LineColor::Error,
         );
-        self.println("  \u{255A}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{255D}", LineColor::Error);
         self.empty_line();
 
-        self.println(
-            "        \u{2597}\u{2596}\u{2596}\u{2596}\u{2596}\u{2596}\u{2597}",
-            LineColor::Error,
-        );
-        self.println(
-            "       \u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}",
-            LineColor::Warning,
-        );
-        self.println(
-            "      \u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}",
-            LineColor::Warning,
-        );
-        self.println(
-            "     \u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}",
-            LineColor::Gold,
-        );
-        self.println(
-            "    \u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}",
-            LineColor::Gold,
-        );
-        self.println("   \u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}\u{2588}", LineColor::Success);
+        self.println("        *^^^^^*", LineColor::Error);
+        self.println("       *^^^^^^^*", LineColor::Warning);
+        self.println("      *^^^^^^^^*", LineColor::Warning);
+        self.println("     *^^^^^^^^^^*", LineColor::Gold);
+        self.println("    *^^^^^^^^^^^**", LineColor::Gold);
+        self.println("   *^^^^^^^^^^^^^^", LineColor::Success);
 
         self.empty_line();
     }
@@ -3469,16 +3204,9 @@ impl Shell {
 
     fn cmd_df(&mut self, _fs: &mut BerkeFS) {
         self.empty_line();
+        self.println("  Disk/Drive Usage", LineColor::Info);
         self.println(
-            "  +========================================+",
-            LineColor::Info,
-        );
-        self.println(
-            "  |         Disk/Drive Kullanim            |",
-            LineColor::Info,
-        );
-        self.println(
-            "  +========================================+",
+            "  ----------------------------------------",
             LineColor::Info,
         );
         self.empty_line();
@@ -3493,25 +3221,25 @@ impl Shell {
         }
         line[pos] = b' ';
         pos += 1;
-        for &b in b"TURU" {
+        for &b in b"Type" {
             line[pos] = b;
             pos += 1;
         }
         line[pos] = b' ';
         pos += 1;
-        for &b in b"BOYUT" {
+        for &b in b"Size" {
             line[pos] = b;
             pos += 1;
         }
         line[pos] = b' ';
         pos += 1;
-        for &b in b"KULLANILAN" {
+        for &b in b"Used" {
             line[pos] = b;
             pos += 1;
         }
         line[pos] = b' ';
         pos += 1;
-        for &b in b"BOS" {
+        for &b in b"Free" {
             line[pos] = b;
             pos += 1;
         }
@@ -3562,11 +3290,11 @@ impl Shell {
                 drive_used = (drive_size as f64 * ratio) as u64;
                 drive_free = drive_size - drive_used;
             } else if state == DriveType::Named {
-                type_str = "Sanal";
+                type_str = "Virtual";
                 drive_used = self.drives[i].used;
                 drive_free = drive_size.saturating_sub(drive_used);
             } else {
-                type_str = "Diger";
+                type_str = "Other";
                 drive_used = 0;
                 drive_free = drive_size;
             }
@@ -3642,7 +3370,7 @@ impl Shell {
         }
 
         self.empty_line();
-        self.println("  * = aktif surucu", LineColor::Info);
+        self.println("  * = active drive", LineColor::Info);
         self.empty_line();
     }
 
@@ -3672,12 +3400,11 @@ impl Shell {
 
     fn cmd_doom(&mut self) {
         self.empty_line();
-        self.println("  \u{2554}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2557}", LineColor::Error);
+        self.println("  DOOM for BerkeOS", LineColor::Error);
         self.println(
-            "  \u{2551}  DOOM for BerkeOS                    \u{2551}",
+            "  ----------------------------------------",
             LineColor::Error,
         );
-        self.println("  \u{255A}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{2550}\u{255D}", LineColor::Error);
         self.empty_line();
 
         self.println("         _______  ", LineColor::Error);
@@ -3687,12 +3414,12 @@ impl Shell {
         self.println("        \\______/", LineColor::Error);
 
         self.empty_line();
-        self.println("  id Software经典作品", LineColor::Info);
-        self.println("  BerkeOS Phase 6'da!", LineColor::Warning);
+        self.println("  id Software classic", LineColor::Info);
+        self.println("  Coming in BerkeOS Phase 6!", LineColor::Warning);
         self.empty_line();
 
-        self.println("  Gerekli:", LineColor::Gold);
-        self.println("  - DOOM IWAD dosyasi (doom.wad)", LineColor::Normal);
+        self.println("  Required:", LineColor::Gold);
+        self.println("  - DOOM IWAD file (doom.wad)", LineColor::Normal);
         self.println("  - Sound card support", LineColor::Normal);
         self.println("  - Joystick/Keyboard control", LineColor::Normal);
     }
@@ -3759,7 +3486,7 @@ impl Shell {
             "  =============================================",
             LineColor::Info,
         );
-        self.println("  BerkeOS v0.6.1 - Future Roadmap", LineColor::Info);
+        self.println("  BerkeOS v0.6.2 - Future Roadmap", LineColor::Info);
         self.println(
             "  =============================================",
             LineColor::Info,
@@ -3887,10 +3614,7 @@ impl Shell {
                 );
             }
         } else {
-            self.println(
-                "  \u{26a0} Depolama ayg\u{131}t\u{131} alg\u{131}lanamad\u{131}",
-                LineColor::Yellow,
-            );
+            self.println("  Storage device not detected", LineColor::Yellow);
         }
         self.empty_line();
         self.draw_full(fb);

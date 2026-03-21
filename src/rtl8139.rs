@@ -2,6 +2,7 @@
 // RTL8139 Network Interface Card Driver
 
 use crate::net::{EthHeader, NetInterface, ETH_ALEN, ETH_P_ARP, ETH_P_IP};
+use spin::Mutex;
 
 // RTL8139 I/O Port Base (from PCI BAR0)
 const RTL8139_IO_BASE: u16 = 0xD000;
@@ -230,20 +231,20 @@ impl Rtl8139Device {
 }
 
 // Global RTL8139 instance
-pub static mut RTL8139: Rtl8139Device = Rtl8139Device::new();
+pub static RTL8139: Mutex<Rtl8139Device> = Mutex::new(Rtl8139Device::new());
 
 pub unsafe fn rtl8139_init(io_base: u16) -> bool {
-    RTL8139.init(io_base)
+    RTL8139.lock().init(io_base)
 }
 
 pub fn rtl8139_present() -> bool {
-    unsafe { RTL8139.is_present() }
+    RTL8139.lock().is_present()
 }
 
 pub fn rtl8139_get_mac() -> [u8; ETH_ALEN] {
-    unsafe { RTL8139.get_mac() }
+    RTL8139.lock().get_mac()
 }
 
 pub fn rtl8139_send(data: &[u8]) -> bool {
-    unsafe { RTL8139.send(data) }
+    unsafe { RTL8139.lock().send(data) }
 }

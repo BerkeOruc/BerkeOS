@@ -4,6 +4,7 @@
 
 use core::arch::{asm, naked_asm};
 use core::sync::atomic::{AtomicU64, AtomicU8, Ordering};
+use spin::Mutex;
 
 // ── PIC I/O ports ─────────────────────────────────────────────────────────────
 const PIC1_CMD: u16 = 0x20;
@@ -23,7 +24,10 @@ pub static TICKS: AtomicU64 = AtomicU64::new(0);
 
 // ── Keyboard scancode ring buffer ─────────────────────────────────────────────
 const KB_BUF_SIZE: usize = 64;
-static mut KB_BUF: [u8; KB_BUF_SIZE] = [0; KB_BUF_SIZE];
+// Raw buffer for assembly access (assembly needs direct memory address)
+static KB_BUF_RAW: [u8; KB_BUF_SIZE] = [0; KB_BUF_SIZE];
+// Mutex-wrapped buffer for safe Rust access
+static KB_BUF: Mutex<[u8; KB_BUF_SIZE]> = Mutex::new([0; KB_BUF_SIZE]);
 static KB_HEAD: AtomicU8 = AtomicU8::new(0);
 static KB_TAIL: AtomicU8 = AtomicU8::new(0);
 
@@ -162,7 +166,7 @@ pub unsafe extern "C" fn irq1_handler() {
         "pop rcx",
         "pop rax",
         "iretq",
-        buf  = sym KB_BUF,
+        buf  = sym KB_BUF_RAW,
         head = sym KB_HEAD,
     );
 }
@@ -180,7 +184,7 @@ pub fn read_scancode() -> Option<u8> {
     if tail == head {
         return None;
     }
-    let sc = unsafe { KB_BUF[tail as usize] };
+    let sc = unsafe { KB_BUF_RAW[tail as usize] };
     KB_TAIL.store((tail + 1) % KB_BUF_SIZE as u8, Ordering::Relaxed);
     Some(sc)
 }

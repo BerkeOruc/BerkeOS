@@ -4,6 +4,7 @@
 // Works on QEMU's default IDE controller (primary bus, master drive)
 
 use core::hint::spin_loop;
+use core::sync::atomic::{AtomicUsize, Ordering};
 
 // ── ATA I/O port base addresses ───────────────────────────────────────────────
 // Primary IDE channel ports - standart IDE controller portlari bunlar
@@ -151,7 +152,7 @@ unsafe fn delay400ns() {
 // ── Detect if ATA drive present ───────────────────────────────────────────────
 // Drive tespiti - IDENTIFY komutu gonderip disk var mi kontrol et
 // Bu biraz uzun bir surec ama mecburen yapmamiz lazim
-pub static mut DISK_COUNT: usize = 0;
+pub static DISK_COUNT: AtomicUsize = AtomicUsize::new(0);
 
 unsafe fn detect_drive(drive_sel: u8) -> bool {
     outb(ATA_PRIMARY_DRIVE, drive_sel); // Drive secimi yap (0xA0 veya 0xB0)
@@ -230,25 +231,25 @@ unsafe fn detect_drive(drive_sel: u8) -> bool {
 // ── Main detect function ──────────────────────────────────────────────────────
 // Iki channel'daki diskleri tara - Alpha (ide0 master, 0xA0) ve Beta (ide1 master, 0xB0)
 pub unsafe fn ata_detect() -> bool {
-    DISK_COUNT = 0; // Taze basla, temiz tut
+    DISK_COUNT.store(0, Ordering::Relaxed); // Taze basla, temiz tut
 
     if detect_drive(0xA0) {
         // Alpha'yi dene - 0xA0 = ide0 master
-        DISK_COUNT += 1;
+        DISK_COUNT.fetch_add(1, Ordering::Relaxed);
     }
 
     if detect_drive(0xB0) {
         // Beta'yi dene - 0xB0 = ide1 master
-        DISK_COUNT += 1;
+        DISK_COUNT.fetch_add(1, Ordering::Relaxed);
     }
 
-    DISK_COUNT > 0 // En az bir disk varsa true don
+    DISK_COUNT.load(Ordering::Relaxed) > 0 // En az bir disk varsa true don
 }
 
 // ── Get disk count ────────────────────────────────────────────────────────────
 // Kac disk var bilgisini al - filesystem falan icin lazim olacak
 pub fn get_disk_count() -> usize {
-    unsafe { DISK_COUNT }
+    DISK_COUNT.load(Ordering::Relaxed)
 }
 
 // ── Read one sector (512 bytes) from LBA address ──────────────────────────────
