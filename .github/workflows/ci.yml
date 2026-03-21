@@ -18,9 +18,16 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Get version
+        id: version
+        run: echo "version=${GITHUB_REF#refs/heads/}-$(date +%Y%m%d-%H%M%S)" >> $GITHUB_OUTPUT
+        shell: bash
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@nightly
@@ -50,7 +57,7 @@ jobs:
         with:
           name: berkeos-iso
           path: build/berkeos.iso
-          retention-days: 1
+          retention-days: 30
 
   test-bios:
     name: Test BIOS
@@ -97,9 +104,7 @@ jobs:
             exit 0
           else
             echo "FAIL: BerkeOS not found in boot output"
-            echo "=== QEMU output ==="
             cat build/qemu_test.log
-            echo "=== Serial log ==="
             cat build/serial.log || echo "(no serial log)"
             exit 1
           fi
@@ -171,9 +176,54 @@ jobs:
             exit 0
           else
             echo "FAIL: BerkeOS not found in boot output"
-            echo "=== QEMU output ==="
             cat build/qemu_test.log
-            echo "=== Serial log ==="
             cat build/serial.log || echo "(no serial log)"
             exit 1
           fi
+
+  release:
+    name: Create Release
+    needs: [build, test-bios, test-uefi]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download ISO
+        uses: actions/download-artifact@v4
+        with:
+          name: berkeos-iso
+          path: build
+
+      - name: Create Release Notes
+        run: |
+          cat > release_notes.md << 'EOF'
+          ## BerkeOS v0.6.3 - Stabilization Release
+
+          ### What's New
+          - Serial Port Driver - COM1 UART at 115200 8N1
+          - Logging Macros - kinfo!, kwarn!, kerr!, kdebug!
+          - Enhanced Panic Handler - Serial output + stack dump
+          - DriveRegistry - Refactored from 12 globals to single struct
+          - fsck Command - Filesystem validation tool
+          - CI/CD Pipeline - GitHub Actions with BIOS/UEFI tests
+          - Test Harness - Automated testing script
+
+          ### Technical Details
+          - Build: ISO created with GRUB (BIOS + UEFI)
+          - Tests: BIOS boot passed | UEFI boot passed
+          - Artifact: berkeos.iso
+          EOF
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v0.6.3
+          name: BerkeOS v0.6.3
+          body_path: release_notes.md
+          draft: false
+          prerelease: false
+          files: build/berkeos.iso
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
