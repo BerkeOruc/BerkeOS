@@ -27,9 +27,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y nasm grub-common xorriso qemu-system-x86 binutils llvm mtools
           echo "=== Debug: mformat location ==="
-          which mformat || echo "mformat not found in PATH"
-          dpkg -L mtools | grep mformat || echo "mformat not in mtools package"
-          ls -la /usr/bin/mformat || echo "No mformat binary"
+          which mformat || ls -la /usr/bin/mformat || echo "mformat not found"
+          ls /usr/share/mtools/ 2>/dev/null || echo "No mtools share dir"
+          export PATH="$PATH:/usr/bin:/bin"
+          echo "PATH=$PATH"
 
       - name: Install Rust
         run: |
