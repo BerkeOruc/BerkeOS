@@ -22,24 +22,30 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nasm grub-common xorriso qemu-system-x86 binutils llvm
+
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@nightly
-        with:
-          components: rust-src
-
-      - name: Cache cargo
-        uses: Swatinem/rust-cache@v2
-        with:
-          shared-key: berkeos-build
-
-      - name: Install dependencies
-        run: sudo apt-get update && sudo apt-get install -y nasm grub-common xorriso qemu-system-x86
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain nightly
+          source "$HOME/.cargo/env"
+          rustup component add rust-src --toolchain nightly
+          rustup component add llvm-tools-preview --toolchain nightly
+          echo "Rust version: $(rustc --version)"
+          echo "Cargo version: $(cargo --version)"
 
       - name: Build BerkeOS
-        run: ./build.sh
+        run: |
+          source "$HOME/.cargo/env"
+          chmod +x build.sh
+          ./build.sh
 
       - name: Verify ISO
-        run: test -f build/berkeos.iso && ls -lh build/berkeos.iso
+        run: |
+          ls -la build/
+          test -f build/berkeos.iso && ls -lh build/berkeos.iso
 
       - name: Upload ISO artifact
         uses: actions/upload-artifact@v4
