@@ -18,16 +18,9 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.version.outputs.version }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Get version
-        id: version
-        run: echo "version=${GITHUB_REF#refs/heads/}-$(date +%Y%m%d-%H%M%S)" >> $GITHUB_OUTPUT
-        shell: bash
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@nightly
@@ -40,17 +33,13 @@ jobs:
           shared-key: berkeos-build
 
       - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y nasm grub-common xorriso qemu-system-x86
+        run: sudo apt-get update && sudo apt-get install -y nasm grub-common xorriso qemu-system-x86
 
       - name: Build BerkeOS
         run: ./build.sh
 
       - name: Verify ISO
-        run: |
-          test -f build/berkeos.iso
-          ls -lh build/berkeos.iso
+        run: test -f build/berkeos.iso && ls -lh build/berkeos.iso
 
       - name: Upload ISO artifact
         uses: actions/upload-artifact@v4
@@ -124,9 +113,7 @@ jobs:
           path: build
 
       - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y qemu-system-x86 ovmf
+        run: sudo apt-get update && sudo apt-get install -y qemu-system-x86 ovmf
 
       - name: Create disk images
         run: |
@@ -136,21 +123,17 @@ jobs:
 
       - name: Find OVMF
         run: |
-          OVMF_PATH=""
           for path in /usr/share/OVMF/OVMF.fd /usr/share/qemu/ovmf-x86_64.bin /usr/share/edk2/x64/OVMF.fd; do
             if [ -f "$path" ]; then
-              OVMF_PATH="$path"
-              echo "Found OVMF at: $OVMF_PATH"
-              break
+              echo "OVMF_PATH=$path" >> $GITHUB_ENV
+              echo "Found OVMF at: $path"
+              exit 0
             fi
           done
-          if [ -z "$OVMF_PATH" ]; then
-            echo "OVMF not found, downloading..."
-            curl -sL https://github.com/tianocore/edk2/releases/download/ovmf-2024.11/OVMF-x86_64-4M.zip -o /tmp/ovmf.zip
-            unzip -q -o /tmp/ovmf.zip -d /tmp/ovmf
-            OVMF_PATH=$(find /tmp/ovmf -name 'OVMF.fd' -o -name '*.fd' 2>/dev/null | head -1)
-            echo "Downloaded OVMF: $OVMF_PATH"
-          fi
+          echo "Downloading OVMF..."
+          curl -sL https://github.com/tianocore/edk2/releases/download/ovmf-2024.11/OVMF-x86_64-4M.zip -o /tmp/ovmf.zip
+          unzip -q -o /tmp/ovmf.zip -d /tmp/ovmf
+          OVMF_PATH=$(find /tmp/ovmf -name 'OVMF.fd' -o -name '*.fd' 2>/dev/null | head -1)
           echo "OVMF_PATH=$OVMF_PATH" >> $GITHUB_ENV
 
       - name: Boot test (UEFI)
@@ -196,32 +179,27 @@ jobs:
           name: berkeos-iso
           path: build
 
-      - name: Create Release Notes
-        run: |
-          cat > release_notes.md << 'EOF'
-          ## BerkeOS v0.6.3 - Stabilization Release
-
-          ### What's New
-          - Serial Port Driver - COM1 UART at 115200 8N1
-          - Logging Macros - kinfo!, kwarn!, kerr!, kdebug!
-          - Enhanced Panic Handler - Serial output + stack dump
-          - DriveRegistry - Refactored from 12 globals to single struct
-          - fsck Command - Filesystem validation tool
-          - CI/CD Pipeline - GitHub Actions with BIOS/UEFI tests
-          - Test Harness - Automated testing script
-
-          ### Technical Details
-          - Build: ISO created with GRUB (BIOS + UEFI)
-          - Tests: BIOS boot passed | UEFI boot passed
-          - Artifact: berkeos.iso
-          EOF
-
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v0.6.3
           name: BerkeOS v0.6.3
-          body_path: release_notes.md
+          body: |
+            ## BerkeOS v0.6.3 - Stabilization Release
+
+            ### What's New
+            - Serial Port Driver - COM1 UART at 115200 8N1
+            - Logging Macros - kinfo!, kwarn!, kerr!, kdebug!
+            - Enhanced Panic Handler - Serial output + stack dump
+            - DriveRegistry - Refactored from 12 globals to single struct
+            - fsck Command - Filesystem validation tool
+            - CI/CD Pipeline - GitHub Actions with BIOS/UEFI tests
+            - Test Harness - Automated testing script
+
+            ### Technical Details
+            - Build: ISO created with GRUB (BIOS + UEFI)
+            - Tests: BIOS boot passed | UEFI boot passed
+            - Artifact: berkeos.iso
           draft: false
           prerelease: false
           files: build/berkeos.iso
