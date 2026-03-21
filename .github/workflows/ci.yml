@@ -134,18 +134,43 @@ jobs:
 
       - name: Find OVMF
         run: |
-          for path in /usr/share/OVMF/OVMF.fd /usr/share/qemu/ovmf-x86_64.bin /usr/share/edk2/x64/OVMF.fd; do
+          # Try common system OVMF paths first
+          for path in /usr/share/OVMF/OVMF.fd /usr/share/qemu/ovmf-x86_64.bin /usr/share/edk2/x64/OVMF.fd /usr/share/OVMF/OVMF_X64.fd; do
             if [ -f "$path" ]; then
               echo "OVMF_PATH=$path" >> $GITHUB_ENV
               echo "Found OVMF at: $path"
               exit 0
             fi
           done
-          echo "Downloading OVMF..."
-          curl -sL https://github.com/tianocore/edk2/releases/download/ovmf-2024.11/OVMF-x86_64-4M.zip -o /tmp/ovmf.zip
-          unzip -q -o /tmp/ovmf.zip -d /tmp/ovmf
-          OVMF_PATH=$(find /tmp/ovmf -name 'OVMF.fd' -o -name '*.fd' 2>/dev/null | head -1)
-          echo "OVMF_PATH=$OVMF_PATH" >> $GITHUB_ENV
+          
+          # Try to find any .fd file
+          OVMF_PATH=$(find /usr/share -name "*.fd" 2>/dev/null | grep -i ovmf | head -1)
+          if [ -n "$OVMF_PATH" ] && [ -f "$OVMF_PATH" ]; then
+            echo "OVMF_PATH=$OVMF_PATH" >> $GITHUB_ENV
+            echo "Found OVMF at: $OVMF_PATH"
+            exit 0
+          fi
+          
+          echo "No OVMF found in system. Trying to download..."
+          
+          # Download from Arch Linux OVMF package (known to work)
+          curl -fSL "https://geo.mirror.pkgbuild.com/packages/ovmf-x86_64-202402-1-x86_64.pkg.tar.zst" -o /tmp/ovmf.pkg.tar.zst 2>/dev/null || \
+          curl -fSL "https://mirror.csclub.uwaterloo.ca/archlinux/packages/ovmf/ovmf-x86_64-202402-1-x86_64.pkg.tar.zst" -o /tmp/ovmf.pkg.tar.zst 2>/dev/null || \
+          curl -fSL "https://www.archlinux.org/packages/core/x86_64/ovmf/download/" -o /tmp/ovmf.pkg.tar.zst 2>/dev/null
+          
+          if [ -f /tmp/ovmf.pkg.tar.zst ]; then
+            mkdir -p /tmp/ovmf
+            tar -xf /tmp/ovmf.pkg.tar.zst -C /tmp/ovmf 2>/dev/null || true
+            OVMF_PATH=$(find /tmp/ovmf -name "*.fd" 2>/dev/null | head -1)
+            if [ -n "$OVMF_PATH" ] && [ -f "$OVMF_PATH" ]; then
+              echo "OVMF_PATH=$OVMF_PATH" >> $GITHUB_ENV
+              echo "Downloaded OVMF to: $OVMF_PATH"
+              exit 0
+            fi
+          fi
+          
+          echo "OVMF_PATH=/usr/share/qemu/ovmf-x86_64.bin" >> $GITHUB_ENV
+          echo "WARNING: Using fallback path"
 
       - name: Boot test (UEFI)
         run: |
