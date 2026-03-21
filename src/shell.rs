@@ -3,11 +3,9 @@
 
 use crate::berkefs::BerkeFS;
 use crate::deno;
-use crate::disk_io;
 use crate::font;
 use crate::framebuffer::{Color, Framebuffer};
 use crate::keyboard::{Key, Keyboard};
-use core::ops::DerefMut;
 
 // ── Color palette ─────────────────────────────────────────────────────────────
 fn col_bg() -> Color {

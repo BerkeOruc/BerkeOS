@@ -262,7 +262,7 @@ impl AhciDevice {
         true
     }
 
-    pub unsafe fn read_sector(&self, port: u8, lba: u64, buf: &mut [u8; 512]) -> bool {
+    pub unsafe fn read_sector(&self, port: u8, lba: u64, _buf: &mut [u8; 512]) -> bool {
         if !self.detect_port(port) {
             return false;
         }
@@ -288,6 +288,7 @@ impl AhciDevice {
         fis[12] = ((lba >> 32) & 0xFF) as u8;
         fis[13] = ((lba >> 40) & 0xFF) as u8;
         fis[15] = 1; // Sector count
+        let _fis = fis;
 
         // Write to command slot
         // Simplified - would need proper cmd table in real implementation

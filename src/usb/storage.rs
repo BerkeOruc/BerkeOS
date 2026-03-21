@@ -2,10 +2,8 @@
 // USB Mass Storage Class Driver (Bulk-Only Transport)
 
 use crate::usb::{
-    ConfigDescriptor, DeviceDescriptor, EndpointDescriptor, InterfaceDescriptor, SetupPacket,
     UsbDevice, SCSI_OP_INQUIRY, SCSI_OP_READ_10, SCSI_OP_READ_CAPACITY, SCSI_OP_REQUEST_SENSE,
-    SCSI_OP_TEST_UNIT_READY, SCSI_OP_WRITE_10, USB_CLASS_MASS_STORAGE, USB_DIR_IN, USB_DIR_OUT,
-    USB_PROTOCOL_BOT, USB_REQ_GET_DESCRIPTOR, USB_REQ_SET_CONFIGURATION,
+    SCSI_OP_TEST_UNIT_READY, SCSI_OP_WRITE_10, USB_DIR_IN, USB_DIR_OUT,
 };
 use spin::Mutex;
 
@@ -254,7 +252,7 @@ impl UsbStorageDevice {
         }
     }
 
-    pub fn read(&mut self, lba: u32, count: u16, buf: &mut [u8]) -> bool {
+    pub fn read(&mut self, _lba: u32, count: u16, buf: &mut [u8]) -> bool {
         if !self.present {
             return false;
         }
@@ -266,10 +264,11 @@ impl UsbStorageDevice {
 
         // BOT protocol would send CBW, data, CSW
         // For now, return false - needs actual USB transfer
+        let _ = (expected, buf.len()); // silence unused warnings
         false
     }
 
-    pub fn write(&mut self, lba: u32, count: u16, buf: &[u8]) -> bool {
+    pub fn write(&mut self, _lba: u32, count: u16, buf: &[u8]) -> bool {
         if !self.present {
             return false;
         }
@@ -280,6 +279,7 @@ impl UsbStorageDevice {
         }
 
         // BOT protocol would send CBW, data, CSW
+        let _ = (expected, buf.len()); // silence unused warnings
         false
     }
 

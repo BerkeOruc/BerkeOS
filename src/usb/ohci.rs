@@ -1,12 +1,7 @@
 // BerkeOS — usb/ohci.rs
 // OHCI (Open Host Controller Interface) USB driver
 
-use crate::usb::{
-    ConfigDescriptor, DeviceDescriptor, EndpointDescriptor, InterfaceDescriptor, PortStatus,
-    SetupPacket, UsbController, UsbDevice, UsbState, USB_CLASS_MASS_STORAGE, USB_DIR_IN,
-    USB_DIR_OUT, USB_PROTOCOL_BOT, USB_REQ_GET_DESCRIPTOR, USB_REQ_SET_ADDRESS,
-    USB_REQ_SET_CONFIGURATION, USB_SPEED_FULL, USB_SPEED_HIGH, USB_SPEED_LOW,
-};
+use crate::usb::{SetupPacket, UsbDevice, UsbState, USB_SPEED_FULL, USB_SPEED_LOW};
 use spin::Mutex;
 
 // OHCI Register Offsets
@@ -385,12 +380,12 @@ pub static OHCI: Mutex<OhciController> = Mutex::new(OhciController::new());
 // Inb/outb for I/O port access
 unsafe fn inl(port: u16) -> u32 {
     let result: u32;
-    core::arch::asm!("inl {0}, {1}", in(reg) port, out(reg) result);
+    core::arch::asm!("inl {1:e}, {0}", in(reg) port, out(reg) result);
     result
 }
 
 unsafe fn outl(port: u16, value: u32) {
-    core::arch::asm!("outl {1}, {0}", in(reg) port, in(reg) value);
+    core::arch::asm!("outl {1:e}, {0}", in(reg) port, in(reg) value);
 }
 
 // USB Initialization

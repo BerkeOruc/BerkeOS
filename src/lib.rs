@@ -1,8 +1,6 @@
 #![no_std]
 #![no_main]
 #![allow(dead_code)]
-#![feature(global_allocator)]
-#![feature(asm)]
 
 extern crate spin;
 
@@ -42,7 +40,7 @@ use framebuffer::Framebuffer;
 use shell::Shell;
 use spin::{Mutex, MutexGuard};
 
-use allocator::{KernelAllocator, HEAP_SIZE, HEAP_START};
+use allocator::KernelAllocator;
 
 #[global_allocator]
 static KERNEL_ALLOCATOR: KernelAllocator = KernelAllocator::new();
@@ -418,7 +416,6 @@ pub extern "C" fn kernel_main(mb2_info_ptr: u32) -> ! {
             // RENKLER - COLORS
             let green = framebuffer::Color::rgb(0x00, 0xFF, 0x00);
             let white = framebuffer::Color::rgb(0xFF, 0xFF, 0xFF);
-            let red = framebuffer::Color::rgb(0xFF, 0x00, 0x00);
             let cyan = framebuffer::Color::rgb(0x00, 0xFF, 0xFF);
 
             // BERKEOS ASCCI ART BASLANGICI - BerkeOS ASCII art begins

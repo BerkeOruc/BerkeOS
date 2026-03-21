@@ -48,7 +48,7 @@ pub fn boot_init(boot_disk: u8, magic: u32) {
     let mut info = BOOT_INFO.lock();
     info.boot_disk = boot_disk;
     info.multiboot_magic = magic;
-    info.kernel_loaded = (magic == 0x36d76289);
+    info.kernel_loaded = magic == 0x36d76289;
     info.detect_boot_device();
 }
 

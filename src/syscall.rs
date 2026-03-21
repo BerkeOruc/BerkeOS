@@ -83,9 +83,7 @@ pub fn dispatch(num: u64, arg0: u64, arg1: u64, arg2: u64) -> SyscallResult {
             SyscallResult::ok(pid as i64)
         }
         SYS_YIELD => {
-            unsafe {
-                crate::scheduler::schedule();
-            }
+            crate::scheduler::schedule();
             SyscallResult::ok(0)
         }
         SYS_UPTIME => {

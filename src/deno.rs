@@ -151,7 +151,6 @@ pub fn run_editor(
     lines[0] = [0; 128];
     line_lens[0] = 0;
 
-    let mut pos = 0;
     for i in 0..content_len {
         if content[i] == b'\n' || line_lens[line_count - 1] >= 127 {
             line_count += 1;
@@ -171,10 +170,10 @@ pub fn run_editor(
 
     let mut cursor_row = 0;
     let mut cursor_col = 0;
-    let mut insert_mode = true;
+    let _insert_mode = true;
     let mut modified = false;
     let mut status_msg = [0u8; 64];
-    let mut status_len = 0;
+    let mut status_len: usize = 0;
 
     let mut kb = Keyboard::new();
 

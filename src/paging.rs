@@ -111,8 +111,6 @@ impl VirtualMemory {
 
 pub fn enable_paging() {
     unsafe {
-        let cr3: u64;
-        core::arch::asm!("mov %cr3, {}", out(reg) cr3);
         let cr4: u64;
         core::arch::asm!("mov %cr4, {}", out(reg) cr4);
         let cr4 = cr4 | (1 << 5) | (1 << 7); // PAE + PSE

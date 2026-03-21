@@ -172,7 +172,7 @@ impl SetupPacket {
         }
     }
 
-    pub fn get_descriptor(dev_addr: u8, dtype: u8, dindex: u8, len: u16) -> Self {
+    pub fn get_descriptor(_dev_addr: u8, dtype: u8, dindex: u8, len: u16) -> Self {
         SetupPacket {
             request_type: USB_DIR_IN,
             request: USB_REQ_GET_DESCRIPTOR,

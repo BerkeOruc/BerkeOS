@@ -408,16 +408,16 @@ impl Editor {
                 self.mode = 0;
                 true
             }
-            Key::Char(c) => {
-                self.insert_char(c);
-                true
-            }
             Key::Char(b'\x08') => {
                 self.backspace();
                 true
             }
             Key::Char(b'\n') => {
                 self.insert_newline();
+                true
+            }
+            Key::Char(c) => {
+                self.insert_char(c);
                 true
             }
             Key::Up => {

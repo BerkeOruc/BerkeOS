@@ -1,7 +1,7 @@
 // BerkeOS — rtl8139.rs
 // RTL8139 Network Interface Card Driver
 
-use crate::net::{EthHeader, NetInterface, ETH_ALEN, ETH_P_ARP, ETH_P_IP};
+use crate::net::{EthHeader, ETH_ALEN};
 use spin::Mutex;
 
 // RTL8139 I/O Port Base (from PCI BAR0)
@@ -130,7 +130,7 @@ impl Rtl8139Device {
         self.mac[2] = self.read8(RTL8139_MAC2);
         self.mac[3] = self.read8(RTL8139_MAC3);
         self.mac[4] = self.read8(RTL8139_MAC4);
-        let mac5 = self.read8(RTL8139_MAC0 + 4);
+        let _mac5 = self.read8(RTL8139_MAC0 + 4);
 
         // Check for valid MAC (not all zeros or all 0xFF)
         if self.mac == [0; 6] || self.mac == [0xFF; 6] {
