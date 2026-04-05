@@ -3,8 +3,8 @@
 // Framework for creating BerkeFS disk images
 // Actual file I/O requires host-side tooling or VirtIO
 
-use crate::ata::SECTOR_SIZE;
-use crate::berkefs::MAX_DATA_BLOCKS;
+use crate::drivers::ata::SECTOR_SIZE;
+use crate::fs::berkefs::MAX_DATA_BLOCKS;
 
 const SUPERBLOCK_LBA: u32 = 0;
 const DATA_START_LBA: u32 = 3;

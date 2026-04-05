@@ -79,15 +79,15 @@ pub fn dispatch(num: u64, arg0: u64, arg1: u64, arg2: u64) -> SyscallResult {
             SyscallResult::ok(0)
         }
         SYS_GETPID => {
-            let pid = crate::scheduler::current_pid();
+            let pid = crate::process::scheduler::current_pid();
             SyscallResult::ok(pid as i64)
         }
         SYS_YIELD => {
-            crate::scheduler::schedule();
+            crate::process::scheduler::schedule();
             SyscallResult::ok(0)
         }
         SYS_UPTIME => {
-            let ticks = crate::pic::uptime_ticks();
+            let ticks = crate::drivers::pic::uptime_ticks();
             SyscallResult::ok(ticks as i64)
         }
         SYS_WRITE => {
@@ -115,7 +115,7 @@ pub fn dispatch(num: u64, arg0: u64, arg1: u64, arg2: u64) -> SyscallResult {
                 let result = fs.lock().create_file(&path_buf, &[]);
                 if result {
                     for fd in 3..10 {
-                        if fs.lock().inodes[fd].ftype == crate::berkefs::FTYPE_FREE {
+                        if fs.lock().inodes[fd].ftype == crate::fs::berkefs::FTYPE_FREE {
                             return SyscallResult::ok(fd as i64);
                         }
                     }
@@ -137,7 +137,7 @@ pub fn dispatch(num: u64, arg0: u64, arg1: u64, arg2: u64) -> SyscallResult {
                 let fs = unsafe { &*crate::get_drive_ptrs()[0] };
                 let fs_lock = fs.lock();
                 if fd < fs_lock.inodes.len()
-                    && fs_lock.inodes[fd].ftype == crate::berkefs::FTYPE_FILE
+                    && fs_lock.inodes[fd].ftype == crate::fs::berkefs::FTYPE_FILE
                 {
                     let name = fs_lock.inodes[fd].get_name();
                     let mut read_buf = [0u8; 512];
@@ -162,7 +162,7 @@ pub fn dispatch(num: u64, arg0: u64, arg1: u64, arg2: u64) -> SyscallResult {
                 let fs = unsafe { &mut *crate::get_drive_ptrs()[0] };
                 let mut fs_lock = fs.lock();
                 if fd < fs_lock.inodes.len()
-                    && fs_lock.inodes[fd].ftype == crate::berkefs::FTYPE_FILE
+                    && fs_lock.inodes[fd].ftype == crate::fs::berkefs::FTYPE_FILE
                 {
                     let name = fs_lock.inodes[fd].get_name();
                     let mut name_buf = [0u8; 64];
@@ -328,9 +328,9 @@ pub fn dispatch(num: u64, arg0: u64, arg1: u64, arg2: u64) -> SyscallResult {
         SYS_READ_KEY => {
             let mut key: u8 = 0;
             unsafe {
-                let status = crate::keyboard::inb(0x64);
+                let status = crate::drivers::keyboard::inb(0x64);
                 if status & 1 != 0 {
-                    key = crate::keyboard::inb(0x60);
+                    key = crate::drivers::keyboard::inb(0x60);
                 }
             }
             SyscallResult::ok(key as i64)
@@ -339,9 +339,9 @@ pub fn dispatch(num: u64, arg0: u64, arg1: u64, arg2: u64) -> SyscallResult {
             let key_code = arg0 as u8;
             let mut down = false;
             unsafe {
-                let status = crate::keyboard::inb(0x64);
+                let status = crate::drivers::keyboard::inb(0x64);
                 if status & 1 != 0 {
-                    let k = crate::keyboard::inb(0x60);
+                    let k = crate::drivers::keyboard::inb(0x60);
                     if k == key_code {
                         down = true;
                     }
@@ -379,10 +379,10 @@ pub fn dispatch(num: u64, arg0: u64, arg1: u64, arg2: u64) -> SyscallResult {
         SYS_INPUT => SyscallResult::ok(0),
         SYS_SLEEP => {
             let ticks = arg0 as u64;
-            let end = crate::pic::uptime_ticks() + ticks * 100;
-            while crate::pic::uptime_ticks() < end {
+            let end = crate::drivers::pic::uptime_ticks() + ticks * 100;
+            while crate::drivers::pic::uptime_ticks() < end {
                 unsafe {
-                    crate::scheduler::schedule();
+                    crate::process::scheduler::schedule();
                 }
             }
             SyscallResult::ok(0)
@@ -403,10 +403,10 @@ pub fn dispatch(num: u64, arg0: u64, arg1: u64, arg2: u64) -> SyscallResult {
 }
 
 fn sys_exit(code: i32) {
-    let pid = crate::scheduler::current_pid();
-    crate::scheduler::PTABLE.lock().kill(pid, code);
+    let pid = crate::process::scheduler::current_pid();
+    crate::process::scheduler::PTABLE.lock().kill(pid, code);
     unsafe {
-        crate::scheduler::schedule();
+        crate::process::scheduler::schedule();
     }
 }
 

@@ -1,4 +1,4 @@
-use crate::framebuffer::{Color, Framebuffer};
+use crate::drivers::framebuffer::{Color, Framebuffer};
 
 pub struct BmpImage {
     pub width: usize,

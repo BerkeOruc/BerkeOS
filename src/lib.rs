@@ -4,45 +4,33 @@
 
 extern crate spin;
 
-mod ahci;
-mod allocator;
-mod ata;
-mod berkefs;
-mod bexvm;
 mod boot;
-mod deno;
-mod disk_io;
-mod disk_paths;
-mod editor;
-mod font;
-mod framebuffer;
-mod idt;
-mod keyboard;
-
+mod drivers;
+mod etc;
+mod fs;
+mod graphics;
+mod memory;
 mod net;
-mod paging;
-mod pcspeaker;
-mod pic;
-mod pit;
-mod popup;
 mod process;
-mod rtc;
-mod rtl8139;
-mod scheduler;
-pub mod serial;
-mod shell;
 mod syscall;
-mod term;
-mod usb;
-mod vga;
+mod ui;
+mod vm;
 
-use berkefs::BerkeFS;
+use fs::berkefs::BerkeFS;
 use core::panic::PanicInfo;
-use framebuffer::Framebuffer;
-use shell::Shell;
+use drivers::framebuffer::{Framebuffer, Color as FbColor};
+use drivers::vga::{Vga, Color};
+use drivers::serial;
+use drivers::idt;
+use drivers::pic;
+use drivers::pit;
+use drivers::ata;
+use drivers::ahci;
+use process::scheduler;
+use ui::shell::Shell;
 use spin::{Mutex, MutexGuard};
 
-use allocator::KernelAllocator;
+use memory::allocator::KernelAllocator;
 
 #[global_allocator]
 static KERNEL_ALLOCATOR: KernelAllocator = KernelAllocator::new();
@@ -412,13 +400,13 @@ pub extern "C" fn kernel_main(mb2_info_ptr: u32) -> ! {
                 unsafe { &mut *drive_ptrs[11] },
             );
 
-            fb.clear(framebuffer::Color::rgb(0x00, 0x00, 0x00));
+            fb.clear(FbColor::rgb(0x00, 0x00, 0x00));
             // Ekrani siyaha siliyoruz - clearing screen to black
 
             // RENKLER - COLORS
-            let green = framebuffer::Color::rgb(0x00, 0xFF, 0x00);
-            let white = framebuffer::Color::rgb(0xFF, 0xFF, 0xFF);
-            let cyan = framebuffer::Color::rgb(0x00, 0xFF, 0xFF);
+            let green = FbColor::rgb(0x00, 0xFF, 0x00);
+            let white = FbColor::rgb(0xFF, 0xFF, 0xFF);
+            let cyan = FbColor::rgb(0x00, 0xFF, 0xFF);
 
             // BERKEOS ASCCI ART BASLANGICI - BerkeOS ASCII art begins
             fb.draw_string(
@@ -426,42 +414,42 @@ pub extern "C" fn kernel_main(mb2_info_ptr: u32) -> ! {
                 2,
                 "██████╗ ███████╗████████╗██████╗  ██████╗ ",
                 white,
-                framebuffer::Color::rgb(0x00, 0x00, 0x00),
+                FbColor::rgb(0x00, 0x00, 0x00),
             );
             fb.draw_string(
                 25,
                 3,
                 "██╔══██╗██╔════╝╚══██╔══╝██╔══██╗██╔═══██╗",
                 white,
-                framebuffer::Color::rgb(0x00, 0x00, 0x00),
+                FbColor::rgb(0x00, 0x00, 0x00),
             );
             fb.draw_string(
                 25,
                 4,
                 "██████╔╝█████╗     ██║   ██████╔╝██║   ██║",
                 white,
-                framebuffer::Color::rgb(0x00, 0x00, 0x00),
+                FbColor::rgb(0x00, 0x00, 0x00),
             );
             fb.draw_string(
                 25,
                 5,
                 "██╔══██╗██╔══╝     ██║   ██╔══██╗██║   ██║",
                 white,
-                framebuffer::Color::rgb(0x00, 0x00, 0x00),
+                FbColor::rgb(0x00, 0x00, 0x00),
             );
             fb.draw_string(
                 25,
                 6,
                 "██║  ██║███████╗   ██║   ██║  ██║╚██████╔╝",
                 white,
-                framebuffer::Color::rgb(0x00, 0x00, 0x00),
+                FbColor::rgb(0x00, 0x00, 0x00),
             );
             fb.draw_string(
                 25,
                 7,
                 "╚═╝  ╚═╝╚══════╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝ ",
                 white,
-                framebuffer::Color::rgb(0x00, 0x00, 0x00),
+                FbColor::rgb(0x00, 0x00, 0x00),
             );
 
             fb.draw_string(
@@ -469,7 +457,7 @@ pub extern "C" fn kernel_main(mb2_info_ptr: u32) -> ! {
                 9,
                 "  BerkeOS v0.6.3 - Boot Sequence  ",
                 cyan,
-                framebuffer::Color::rgb(0x00, 0x00, 0x00),
+                FbColor::rgb(0x00, 0x00, 0x00),
             );
 
             fb.draw_string(
@@ -477,7 +465,7 @@ pub extern "C" fn kernel_main(mb2_info_ptr: u32) -> ! {
                 13,
                 "Initializing BerkeOS...",
                 white,
-                framebuffer::Color::rgb(0x00, 0x00, 0x00),
+                FbColor::rgb(0x00, 0x00, 0x00),
             );
             pit::sleep_ms(1000);
             fb.draw_string(
@@ -485,7 +473,7 @@ pub extern "C" fn kernel_main(mb2_info_ptr: u32) -> ! {
                 13,
                 "[  OK  ]",
                 green,
-                framebuffer::Color::rgb(0x00, 0x00, 0x00),
+                FbColor::rgb(0x00, 0x00, 0x00),
             );
             // BerkeOS hazir! - BerkeOS is ready!
 
@@ -494,7 +482,7 @@ pub extern "C" fn kernel_main(mb2_info_ptr: u32) -> ! {
                 14,
                 "Loading memory manager...",
                 white,
-                framebuffer::Color::rgb(0x00, 0x00, 0x00),
+                FbColor::rgb(0x00, 0x00, 0x00),
             );
             pit::sleep_ms(1000);
             fb.draw_string(
@@ -502,7 +490,7 @@ pub extern "C" fn kernel_main(mb2_info_ptr: u32) -> ! {
                 14,
                 "[  OK  ]",
                 green,
-                framebuffer::Color::rgb(0x00, 0x00, 0x00),
+                FbColor::rgb(0x00, 0x00, 0x00),
             );
             // Hafiza yonetimi hazir - memory management ready
 
@@ -511,7 +499,7 @@ pub extern "C" fn kernel_main(mb2_info_ptr: u32) -> ! {
                 15,
                 "Setting up interrupts...",
                 white,
-                framebuffer::Color::rgb(0x00, 0x00, 0x00),
+                FbColor::rgb(0x00, 0x00, 0x00),
             );
             pit::sleep_ms(1000);
             fb.draw_string(
@@ -519,7 +507,7 @@ pub extern "C" fn kernel_main(mb2_info_ptr: u32) -> ! {
                 15,
                 "[  OK  ]",
                 green,
-                framebuffer::Color::rgb(0x00, 0x00, 0x00),
+                FbColor::rgb(0x00, 0x00, 0x00),
             );
             // Kesmeler ayarlandi - interrupts configured
 
@@ -528,7 +516,7 @@ pub extern "C" fn kernel_main(mb2_info_ptr: u32) -> ! {
                 16,
                 "Initializing keyboard...",
                 white,
-                framebuffer::Color::rgb(0x00, 0x00, 0x00),
+                FbColor::rgb(0x00, 0x00, 0x00),
             );
             pit::sleep_ms(1000);
             fb.draw_string(
@@ -536,7 +524,7 @@ pub extern "C" fn kernel_main(mb2_info_ptr: u32) -> ! {
                 16,
                 "[  OK  ]",
                 green,
-                framebuffer::Color::rgb(0x00, 0x00, 0x00),
+                FbColor::rgb(0x00, 0x00, 0x00),
             );
             // Klavye hazir, yazmaya hazir ol! - keyboard ready, get ready to type!
 
@@ -545,7 +533,7 @@ pub extern "C" fn kernel_main(mb2_info_ptr: u32) -> ! {
                 17,
                 "Initializing storage...",
                 white,
-                framebuffer::Color::rgb(0x00, 0x00, 0x00),
+                FbColor::rgb(0x00, 0x00, 0x00),
             );
             pit::sleep_ms(1000);
             fb.draw_string(
@@ -553,7 +541,7 @@ pub extern "C" fn kernel_main(mb2_info_ptr: u32) -> ! {
                 17,
                 "[  OK  ]",
                 green,
-                framebuffer::Color::rgb(0x00, 0x00, 0x00),
+                FbColor::rgb(0x00, 0x00, 0x00),
             );
             // Depolama hazir, dosyalarin agerisinde - storage ready, your files await
 
@@ -562,7 +550,7 @@ pub extern "C" fn kernel_main(mb2_info_ptr: u32) -> ! {
                 18,
                 "Starting shell...",
                 white,
-                framebuffer::Color::rgb(0x00, 0x00, 0x00),
+                FbColor::rgb(0x00, 0x00, 0x00),
             );
             pit::sleep_ms(1000);
             fb.draw_string(
@@ -570,11 +558,11 @@ pub extern "C" fn kernel_main(mb2_info_ptr: u32) -> ! {
                 18,
                 "[  OK  ]",
                 green,
-                framebuffer::Color::rgb(0x00, 0x00, 0x00),
+                FbColor::rgb(0x00, 0x00, 0x00),
             );
             // SHELL BASLADI! Artik komut gir! - SHELL STARTED! Now enter your commands!
 
-            fb.clear(framebuffer::Color::rgb(0x00, 0x00, 0x00));
+            fb.clear(FbColor::rgb(0x00, 0x00, 0x00));
             // Boot tamamlandi, shell'e gecis yapildi - boot complete, transition to shell
 
             shell.run(&mut fb);
@@ -585,23 +573,23 @@ pub extern "C" fn kernel_main(mb2_info_ptr: u32) -> ! {
             // FB yok, VGA text mode'a gecis yap - no framebuffer, switching to VGA text mode
             // Bu durumda daha az guzel ama calisiyor - less pretty but it works
             if vga_exists {
-                let v = vga::Vga::new();
-                v.clear(vga::Color::Black);
-                v.fill_row(0, vga::Color::Blue);
+                let v = Vga::new();
+                v.clear(Color::Black);
+                v.fill_row(0, Color::Blue);
                 v.print_at(
                     1,
                     0,
                     "BerkeOS v0.6.3 booting...",
-                    vga::Color::White,
-                    vga::Color::Blue,
+                    Color::White,
+                    Color::Blue,
                 );
-                v.fill_row(2, vga::Color::Black);
+                v.fill_row(2, Color::Black);
                 v.print_at(
                     1,
                     2,
                     "Detecting hardware...",
-                    vga::Color::Yellow,
-                    vga::Color::Black,
+                    Color::Yellow,
+                    Color::Black,
                 );
 
                 // Initialize basics
@@ -619,8 +607,8 @@ pub extern "C" fn kernel_main(mb2_info_ptr: u32) -> ! {
                     1,
                     3,
                     "Checking storage...",
-                    vga::Color::Yellow,
-                    vga::Color::Black,
+                    Color::Yellow,
+                    Color::Black,
                 );
                 let sata_ok = unsafe { ahci::ahci_init() };
                 let ata_ok = if !sata_ok {
@@ -630,20 +618,20 @@ pub extern "C" fn kernel_main(mb2_info_ptr: u32) -> ! {
                 };
 
                 if sata_ok {
-                    v.print_at(1, 4, "SATA (AHCI) OK", vga::Color::Green, vga::Color::Black);
+                    v.print_at(1, 4, "SATA (AHCI) OK", Color::Green, Color::Black);
                 } else if ata_ok {
-                    v.print_at(1, 4, "ATA disk OK", vga::Color::Green, vga::Color::Black);
+                    v.print_at(1, 4, "ATA disk OK", Color::Green, Color::Black);
                 } else {
-                    v.print_at(1, 4, "Live USB Mode", vga::Color::Cyan, vga::Color::Black);
+                    v.print_at(1, 4, "Live USB Mode", Color::Cyan, Color::Black);
                 }
 
-                v.fill_row(6, vga::Color::Blue);
+                v.fill_row(6, Color::Blue);
                 v.print_at(
                     1,
                     6,
                     "Loading BerkeOS...",
-                    vga::Color::White,
-                    vga::Color::Blue,
+                    Color::White,
+                    Color::Blue,
                 );
 
                 let mut fs = unsafe { DRIVE_REGISTRY.get_fs(0).expect("Drive 0 must exist") };
@@ -652,19 +640,19 @@ pub extern "C" fn kernel_main(mb2_info_ptr: u32) -> ! {
                         1,
                         7,
                         "Formatting drive...",
-                        vga::Color::Yellow,
-                        vga::Color::Black,
+                        Color::Yellow,
+                        Color::Black,
                     );
                     fs.format(b"Alpha");
                 }
 
-                v.fill_row(24, vga::Color::Blue);
+                v.fill_row(24, Color::Blue);
                 v.print_at(
                     1,
                     24,
                     "BerkeOS v0.6.3 | Berke Oruc | Rust | x86_64",
-                    vga::Color::White,
-                    vga::Color::Blue,
+                    Color::White,
+                    Color::Blue,
                 );
             } else {
                 // No VGA, no framebuffer - halt with error

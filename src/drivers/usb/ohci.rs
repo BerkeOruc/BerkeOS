@@ -1,7 +1,7 @@
 // BerkeOS — usb/ohci.rs
 // OHCI (Open Host Controller Interface) USB driver
 
-use crate::usb::{SetupPacket, UsbDevice, UsbState, USB_SPEED_FULL, USB_SPEED_LOW};
+use super::{SetupPacket, UsbDevice, UsbState, USB_SPEED_FULL, USB_SPEED_LOW};
 use spin::Mutex;
 
 // OHCI Register Offsets

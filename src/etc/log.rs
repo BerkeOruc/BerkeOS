@@ -1,6 +1,6 @@
 // BerkeOS Kernel Logging
 
-use crate::serial;
+use crate::drivers::serial;
 
 static LOG_COUNTER: spin::Mutex<u32> = spin::Mutex::new(0);
 
@@ -12,11 +12,11 @@ pub fn next_counter() -> u32 {
 
 pub fn serial_write(s: &str) {
     unsafe {
-        crate::serial::write_str(s);
+        crate::drivers::serial::write_str(s);
     }
 }
 
-pub fn format_for_vga(_level: &str, msg: &str) -> &str {
+pub fn format_for_vga<'a>(_level: &'a str, msg: &'a str) -> &'a str {
     msg
 }
 

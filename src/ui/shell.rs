@@ -1,13 +1,13 @@
 // BerkeOS — shell.rs
 // Interactive shell
 
-use crate::berkefs::BerkeFS;
-use crate::bexvm;
-use crate::deno;
-use crate::font;
-use crate::framebuffer::{Color, Framebuffer};
-use crate::keyboard::{Key, Keyboard};
-use crate::serial;
+use crate::fs::berkefs::BerkeFS;
+use crate::vm::bexvm;
+use crate::ui::deno;
+use crate::graphics::font;
+use crate::drivers::framebuffer::{Color, Framebuffer};
+use crate::drivers::keyboard::{Key, Keyboard};
+use crate::drivers::serial;
 
 // ── Color palette ─────────────────────────────────────────────────────────────
 fn col_bg() -> Color {
@@ -1363,9 +1363,9 @@ impl Shell {
             let mut file_count: usize = 0;
             let mut dir_count: usize = 0;
 
-            for i in 0..crate::berkefs::MAX_INODES {
+            for i in 0..crate::fs::berkefs::MAX_INODES {
                 let ftype = fs.inodes[i].ftype;
-                if ftype == crate::berkefs::FTYPE_FREE {
+                if ftype == crate::fs::berkefs::FTYPE_FREE {
                     continue;
                 }
                 let mut nbuf = [0u8; 64];
@@ -1391,7 +1391,7 @@ impl Shell {
 
                 found = true;
                 let size = fs.inodes[i].size as usize;
-                let type_str = if ftype == crate::berkefs::FTYPE_DIR {
+                let type_str = if ftype == crate::fs::berkefs::FTYPE_DIR {
                     "[DIR] "
                 } else {
                     "[FILE]"
@@ -1422,7 +1422,7 @@ impl Shell {
                     line[li] = b' ';
                     li += 1;
                 }
-                if ftype == crate::berkefs::FTYPE_FILE {
+                if ftype == crate::fs::berkefs::FTYPE_FILE {
                     let mut sbuf = [0u8; 16];
                     let sn = write_uint_buf(&mut sbuf, 0, size);
                     for &b in &sbuf[..sn] {
@@ -1448,7 +1448,7 @@ impl Shell {
                     }
                     dir_count += 1;
                 }
-                let lc = if ftype == crate::berkefs::FTYPE_DIR {
+                let lc = if ftype == crate::fs::berkefs::FTYPE_DIR {
                     LineColor::Gold
                 } else {
                     LineColor::Normal
@@ -1815,14 +1815,14 @@ impl Shell {
         }
         self.empty_line();
         let mut found = false;
-        for i in 0..crate::berkefs::MAX_INODES {
-            if fs.inodes[i].ftype == crate::berkefs::FTYPE_FREE {
+        for i in 0..crate::fs::berkefs::MAX_INODES {
+            if fs.inodes[i].ftype == crate::fs::berkefs::FTYPE_FREE {
                 continue;
             }
             let mut nbuf = [0u8; 64];
             let name = fs.get_full_name(i, &mut nbuf);
             if contains_slice(name, arg) {
-                let type_str = if fs.inodes[i].ftype == crate::berkefs::FTYPE_DIR {
+                let type_str = if fs.inodes[i].ftype == crate::fs::berkefs::FTYPE_DIR {
                     "[DIR] "
                 } else {
                     "[FILE]"
@@ -1869,8 +1869,8 @@ impl Shell {
         }
         let mut fp = [0u8; 64];
         let fplen = self.full_path(arg, &mut fp);
-        for i in 0..crate::berkefs::MAX_INODES {
-            if fs.inodes[i].ftype == crate::berkefs::FTYPE_FREE {
+        for i in 0..crate::fs::berkefs::MAX_INODES {
+            if fs.inodes[i].ftype == crate::fs::berkefs::FTYPE_FREE {
                 continue;
             }
             let mut nbuf = [0u8; 64];
@@ -1887,7 +1887,7 @@ impl Shell {
                     }
                 }
                 self.push_line(&nline[..ni], LineColor::Info);
-                let type_str = if fs.inodes[i].ftype == crate::berkefs::FTYPE_DIR {
+                let type_str = if fs.inodes[i].ftype == crate::fs::berkefs::FTYPE_DIR {
                     "  Type   : Directory"
                 } else {
                     "  Type   : Regular File"
@@ -2501,10 +2501,10 @@ impl Shell {
                 }
 
                 if device == b"rtc" || device.is_empty() {
-                    let dt = crate::rtc::read();
+                    let dt = crate::drivers::rtc::read();
                     self.println("  \u{2714} RTC: Working", LineColor::Success);
                     let mut buf = [0u8; 32];
-                    let n = crate::rtc::format_datetime(&dt, &mut buf);
+                    let n = crate::drivers::rtc::format_datetime(&dt, &mut buf);
                     let mut msg = [0u8; 48];
                     msg[..5].copy_from_slice(b"  Time:");
                     msg[5..5 + n].copy_from_slice(&buf[..n]);
@@ -2512,7 +2512,7 @@ impl Shell {
                 }
 
                 if device == b"pit" || device.is_empty() {
-                    let ticks = crate::pic::uptime_ticks();
+                    let ticks = crate::drivers::pic::uptime_ticks();
                     self.println("  \u{2714} PIT: Timer working", LineColor::Success);
                     let mut msg = [0u8; 32];
                     msg[..14].copy_from_slice(b"  Ticks: ");
@@ -2565,7 +2565,7 @@ impl Shell {
     fn cmd_reboot(&mut self) {
         self.println("  Rebooting...", LineColor::Yellow);
         unsafe {
-            crate::keyboard::outb(0x64, 0xFE);
+            crate::drivers::keyboard::outb(0x64, 0xFE);
         }
     }
 
@@ -2578,7 +2578,7 @@ impl Shell {
 
     fn cmd_beep(&mut self, arg: &[u8]) {
         if arg.is_empty() {
-            crate::pcspeaker::beep(440, 200);
+            crate::drivers::pcspeaker::beep(440, 200);
             self.println("  \u{2714} Beep!", LineColor::Success);
             return;
         }
@@ -2615,7 +2615,7 @@ impl Shell {
             dur = d;
         }
 
-        crate::pcspeaker::beep(freq, dur);
+        crate::drivers::pcspeaker::beep(freq, dur);
         let mut msg = [0u8; 32];
         msg[..5].copy_from_slice(b"  Beep");
         let mut mi = 5;
@@ -2667,7 +2667,7 @@ impl Shell {
 
         self.empty_line();
 
-        if crate::pcspeaker::is_audio_working() {
+        if crate::drivers::pcspeaker::is_audio_working() {
             self.println("  Audio: PC Speaker Ready", LineColor::Success);
         } else {
             self.println("  Audio: Not initialized", LineColor::Warning);
@@ -2677,14 +2677,14 @@ impl Shell {
     fn cmd_audio(&mut self) {
         self.empty_line();
 
-        if crate::pcspeaker::init_audio() {
+        if crate::drivers::pcspeaker::init_audio() {
             self.println("  +=============================+", LineColor::Success);
             self.println("  |     Audio System Ready      |", LineColor::Success);
             self.println("  +=============================+", LineColor::Success);
             self.empty_line();
             self.println("  PC Speaker initialized!", LineColor::Success);
 
-            crate::pcspeaker::beep_ok();
+            crate::drivers::pcspeaker::beep_ok();
             self.println("  Test beep played.", LineColor::Info);
         } else {
             self.println("  Audio initialization failed!", LineColor::Error);
@@ -2744,7 +2744,7 @@ impl Shell {
             }
         }
 
-        crate::pcspeaker::beep(freq, 300);
+        crate::drivers::pcspeaker::beep(freq, 300);
 
         let mut msg = [0u8; 24];
         msg[..5].copy_from_slice(b"  Note");
@@ -2917,9 +2917,9 @@ impl Shell {
     }
 
     fn cmd_date(&mut self) {
-        let dt = crate::rtc::read();
+        let dt = crate::drivers::rtc::read();
         let mut buf = [0u8; 32];
-        let n = crate::rtc::format_datetime(&dt, &mut buf);
+        let n = crate::drivers::rtc::format_datetime(&dt, &mut buf);
         let mut line = [0u8; 80];
         let pfx = b"  Date/Time: ";
         line[..pfx.len()].copy_from_slice(pfx);
@@ -2928,9 +2928,9 @@ impl Shell {
     }
 
     fn cmd_uptime(&mut self) {
-        let secs = crate::pic::uptime_seconds();
+        let secs = crate::drivers::pic::uptime_seconds();
         let mut buf = [0u8; 48];
-        let n = crate::rtc::format_uptime(secs, &mut buf);
+        let n = crate::drivers::rtc::format_uptime(secs, &mut buf);
         let mut line = [0u8; 80];
         let pfx = b"  Uptime: ";
         line[..pfx.len()].copy_from_slice(pfx);
@@ -2939,7 +2939,7 @@ impl Shell {
     }
 
     fn cmd_ticks(&mut self) {
-        let ticks = crate::pic::uptime_ticks();
+        let ticks = crate::drivers::pic::uptime_ticks();
         let mut line = [0u8; 80];
         let pfx = b"  Timer ticks (100Hz): ";
         line[..pfx.len()].copy_from_slice(pfx);
@@ -3120,7 +3120,7 @@ impl Shell {
         match size {
             Some(file_size) if file_size > 0 => {
                 serial::write_str("\r\n[SNAKE] Loading game from disk...\r\n");
-                match crate::bexvm::run_bex_file(&data[..file_size]) {
+                match crate::vm::bexvm::run_bex_file(&data[..file_size]) {
                     Ok(()) => {
                         self.println("  [OK] Game finished!", LineColor::Success);
                     }
@@ -3357,8 +3357,8 @@ impl Shell {
         self.push_line(&line[..pos], LineColor::Gold);
         self.empty_line();
 
-        let block_size = crate::berkefs::BLOCK_SIZE as u64;
-        let max_blocks = crate::berkefs::MAX_DATA_BLOCKS as u64;
+        let block_size = crate::fs::berkefs::BLOCK_SIZE as u64;
+        let max_blocks = crate::fs::berkefs::MAX_DATA_BLOCKS as u64;
         let fs_total = block_size * max_blocks;
         let current_fs = self.get_current_fs();
         let fs_used_blocks = max_blocks.saturating_sub(current_fs.free_blocks() as u64);
@@ -3758,7 +3758,7 @@ impl Shell {
 
                 serial::write_str("\r\n[BERUN] Executing .bex...\r\n");
 
-                match crate::bexvm::run_bex_file(&data[..file_size]) {
+                match crate::vm::bexvm::run_bex_file(&data[..file_size]) {
                     Ok(()) => {
                         self.println("  [OK] Program finished", LineColor::Success);
                     }
@@ -4061,7 +4061,7 @@ impl Shell {
                     Ok(bex_len) => {
                         serial::write_str("[BERKEPY] Running bytecode...\r\n");
 
-                        match crate::bexvm::run_bex_file(&bex_buf[..bex_len]) {
+                        match crate::vm::bexvm::run_bex_file(&bex_buf[..bex_len]) {
                             Ok(()) => {
                                 self.println("  [OK] Program finished", LineColor::Success);
                             }

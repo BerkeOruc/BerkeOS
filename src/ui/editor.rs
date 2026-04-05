@@ -1,6 +1,6 @@
-use crate::berkefs::BerkeFS;
-use crate::framebuffer::{Color, Framebuffer};
-use crate::keyboard::Key;
+use crate::fs::berkefs::BerkeFS;
+use crate::drivers::framebuffer::{Color, Framebuffer};
+use crate::drivers::keyboard::Key;
 
 pub struct Editor {
     buffer: [u8; 8192],
