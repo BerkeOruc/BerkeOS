@@ -1,4 +1,4 @@
-use crate::pcspeaker;
+use crate::drivers::pcspeaker;
 
 pub struct WavPlayer {
     pub sample_rate: u32,

@@ -8,7 +8,7 @@
 //   Drive 0 (Alpha) = QEMU ide0, Drive 1 (Beta) = QEMU ide1
 //   Alpha = birinci disk (primary), Beta = ikinci disk (secondary)
 
-use crate::ata::{read_sector, write_sector, SECTOR_SIZE};
+use crate::drivers::ata::{read_sector, write_sector, SECTOR_SIZE};
 
 pub const BERKEFS_MAGIC: u32 = 0xBE4BEF55; // sihirli numara - filesystem tanimak icin kullanilir (magic bytes)
 pub const BERKEFS_VERSION: u16 = 3; // versiyon 3 - oncekilere göre iyilestirmeler var

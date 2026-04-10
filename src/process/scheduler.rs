@@ -3,7 +3,7 @@
 // Called from IRQ0 (PIT timer, 100Hz)
 // Saves current context, picks next ready process, restores its context
 
-use crate::process::{ProcessState, ProcessTable, MAX_PROCESSES};
+use super::process::{ProcessState, ProcessTable, MAX_PROCESSES};
 use core::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use spin::Mutex;
 

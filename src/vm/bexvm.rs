@@ -114,13 +114,13 @@ impl BexVM {
 
     fn print_str(&self, s: &[u8]) {
         for &b in s {
-            crate::serial::write_byte(b);
+            crate::drivers::serial::write_byte(b);
         }
     }
 
     fn print_i64(&self, mut val: i64) {
         if val == 0 {
-            crate::serial::write_byte(b'0');
+            crate::drivers::serial::write_byte(b'0');
             return;
         }
         let neg = val < 0;
@@ -135,10 +135,10 @@ impl BexVM {
             idx += 1;
         }
         if neg {
-            crate::serial::write_byte(b'-');
+            crate::drivers::serial::write_byte(b'-');
         }
         for i in (0..idx).rev() {
-            crate::serial::write_byte(buf[i]);
+            crate::drivers::serial::write_byte(buf[i]);
         }
     }
 
@@ -169,8 +169,8 @@ impl BexVM {
                 ]);
                 *offset += 8;
                 self.print_i64(val as i64);
-                crate::serial::write_byte(b'.');
-                crate::serial::write_byte(b'0');
+                crate::drivers::serial::write_byte(b'.');
+                crate::drivers::serial::write_byte(b'0');
             }
             3 => {
                 let len = u32::from_le_bytes([
@@ -181,7 +181,7 @@ impl BexVM {
                 ]) as usize;
                 *offset += 4;
                 for i in 0..len {
-                    crate::serial::write_byte(data[*offset + i]);
+                    crate::drivers::serial::write_byte(data[*offset + i]);
                 }
                 *offset += len;
             }
@@ -215,7 +215,7 @@ impl BexVM {
                     ]) as usize;
                     *offset += 4;
                     for j in 0..key_len {
-                        crate::serial::write_byte(data[*offset + j]);
+                        crate::drivers::serial::write_byte(data[*offset + j]);
                     }
                     *offset += key_len;
                     self.print_str(b": ");
@@ -294,11 +294,11 @@ impl BexVM {
         }
         let name_len = u16::from_le_bytes([data[6], data[7]]) as usize;
 
-        crate::serial::write_str("\r\n[BERUN] Running: ");
+        crate::drivers::serial::write_str("\r\n[BERUN] Running: ");
         for i in 0..name_len {
-            crate::serial::write_byte(data[8 + i]);
+            crate::drivers::serial::write_byte(data[8 + i]);
         }
-        crate::serial::write_str("\r\n\r\n");
+        crate::drivers::serial::write_str("\r\n\r\n");
 
         let mut offset = 8 + name_len;
         let const_count = u32::from_le_bytes([
@@ -531,7 +531,7 @@ impl BexVM {
                 } // PRINT
                 14 => {
                     let _ = self.pop();
-                    crate::serial::write_str("\r\n");
+                    crate::drivers::serial::write_str("\r\n");
                 } // PRINTLN
                 15 => {
                     if self.call_sp > 0 {
@@ -839,7 +839,7 @@ impl BexVM {
                 _ => {}
             }
         }
-        crate::serial::write_str("\r\n[BERUN] Done.\r\n");
+        crate::drivers::serial::write_str("\r\n[BERUN] Done.\r\n");
         Ok(())
     }
 }

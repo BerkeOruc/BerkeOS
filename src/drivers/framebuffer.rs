@@ -1,7 +1,7 @@
 // BerkeOS — framebuffer.rs
 // Pixel framebuffer writer for 32bpp and 24bpp linear framebuffers.
 
-use crate::font;
+use crate::graphics::font;
 use crate::FbInfo;
 
 #[derive(Copy, Clone)]

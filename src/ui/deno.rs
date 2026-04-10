@@ -1,10 +1,10 @@
 // BerkeOS — deno.rs
 // Deno Text Editor Module
 
-use crate::berkefs::BerkeFS;
-use crate::font;
-use crate::framebuffer::{Color, Framebuffer};
-use crate::keyboard::{Key, Keyboard};
+use crate::fs::berkefs::BerkeFS;
+use crate::graphics::font;
+use crate::drivers::framebuffer::{Color, Framebuffer};
+use crate::drivers::keyboard::{Key, Keyboard};
 
 const GW: usize = font::GLYPH_W;
 const GH: usize = font::GLYPH_H;
@@ -58,7 +58,7 @@ pub fn run_editor(
     arg: &[u8],
     fs: &mut BerkeFS,
     fb: &mut Framebuffer,
-    shell: &mut crate::shell::Shell,
+    shell: &mut crate::ui::shell::Shell,
 ) {
     let mut is_help = false;
 
@@ -80,45 +80,45 @@ pub fn run_editor(
         shell.empty_line();
         shell.println(
             "  BerkeOS Deno Editor v0.3.8",
-            crate::shell::LineColor::Gold,
+            crate::ui::shell::LineColor::Gold,
         );
         shell.println(
             "  Developer: Berke Oruc (Age 16)",
-            crate::shell::LineColor::Info,
+            crate::ui::shell::LineColor::Info,
         );
         shell.println(
             "  GitHub: github.com/berkeoruc/BerkeOS",
-            crate::shell::LineColor::Info,
+            crate::ui::shell::LineColor::Info,
         );
         shell.empty_line();
-        shell.println("  Usage: deno <filename>", crate::shell::LineColor::Normal);
+        shell.println("  Usage: deno <filename>", crate::ui::shell::LineColor::Normal);
         shell.println(
             "         deno --help                       ",
-            crate::shell::LineColor::Normal,
+            crate::ui::shell::LineColor::Normal,
         );
         shell.empty_line();
-        shell.println("  Commands:", crate::shell::LineColor::Gold);
+        shell.println("  Commands:", crate::ui::shell::LineColor::Gold);
         shell.println(
             "    deno <file>     - Edit or create file",
-            crate::shell::LineColor::Normal,
+            crate::ui::shell::LineColor::Normal,
         );
         shell.empty_line();
-        shell.println("  Editor Keys:", crate::shell::LineColor::Gold);
+        shell.println("  Editor Keys:", crate::ui::shell::LineColor::Gold);
         shell.println(
             "    Arrow keys     - Move cursor",
-            crate::shell::LineColor::Normal,
+            crate::ui::shell::LineColor::Normal,
         );
         shell.println(
             "    Any key        - Type directly",
-            crate::shell::LineColor::Normal,
+            crate::ui::shell::LineColor::Normal,
         );
         shell.println(
             "    Ctrl+S         - Save file",
-            crate::shell::LineColor::Normal,
+            crate::ui::shell::LineColor::Normal,
         );
         shell.println(
             "    Ctrl+Q         - Quit (force if modified)",
-            crate::shell::LineColor::Normal,
+            crate::ui::shell::LineColor::Normal,
         );
         shell.empty_line();
         return;

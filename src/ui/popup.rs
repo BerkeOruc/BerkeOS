@@ -1,9 +1,9 @@
 // BerkeOS — popup.rs
 // Blocking popup/warning dialog system for framebuffer display.
 
-use crate::framebuffer::{Color, Framebuffer};
-use crate::keyboard::{Key, Keyboard};
-use crate::serial;
+use crate::drivers::framebuffer::{Color, Framebuffer};
+use crate::drivers::keyboard::{Key, Keyboard};
+use crate::drivers::serial;
 
 const POPUP_PADDING: usize = 20;
 const POPUP_BORDER: usize = 2;

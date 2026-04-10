@@ -1,7 +1,7 @@
 // BerkeOS — usb/storage.rs
 // USB Mass Storage Class Driver (Bulk-Only Transport)
 
-use crate::usb::{
+use super::{
     UsbDevice, SCSI_OP_INQUIRY, SCSI_OP_READ_10, SCSI_OP_READ_CAPACITY, SCSI_OP_REQUEST_SENSE,
     SCSI_OP_TEST_UNIT_READY, SCSI_OP_WRITE_10, USB_DIR_IN, USB_DIR_OUT,
 };
