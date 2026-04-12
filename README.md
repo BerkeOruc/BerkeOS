@@ -185,6 +185,7 @@ __/\\\\\\\\\\\\\________________________________________________________________
 
 <img src="https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/fire.png" alt="separator" width="100%">
 
+> It is an ambitious project aiming for broad compatibility (including Linux ABI support) and a flexible architecture. We consider it a sister project, and your support there would be highly valued!
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
 <!--                           SCREENSHOTS                                 -->
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
@@ -615,3 +616,7 @@ Apache License 2.0 — Copyright 2024-2026 Berke Oruç
 - **OSDev Wiki** — Kernel development resources
 - **Free AI Tools** — Making this project possible at zero cost
 - **Open Source** — The spirit of sharing and collaboration
+> ### 🌟 Sister Project: Qunix OS
+> If you enjoy exploring **BerkeOS**, you should definitely check out **[Qunix Operating System](https://github.com/MohammadMuzamil23/Qunix-Operating-System)**. 
+> 
+> It is an ambitious project aiming for broad compatibility (including Linux ABI support) and a flexible architecture. We consider it a sister project, and your support there would be highly valued!
