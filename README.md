@@ -1,6 +1,20 @@
 <div align="center">
 
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!--                          IMPORTANT NOTICE                           -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+
+> ⚠️ **BerkeOS Development Has Been Discontinued**
+> 
+> **This project is no longer maintained. All development has moved to [Bros](https://github.com/BerkeOruc/bros).**
+> 
+> Bros is the successor to BerkeOS with improved features, better architecture, and proprietary licensing.
+> 
+> **Please use the [Bros repository](https://github.com/BerkeOruc/bros) for all future development and contributions.**
+
+---
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
 <!--                          HERO BANNER SECTION                          -->
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
 
