@@ -12,6 +12,7 @@ ISO="build/berkeos.iso"
 
 NOGRAPHIC=false
 UEFI_MODE=false
+VNC_MODE=false
 
 for arg in "$@"; do
     case $arg in
@@ -21,6 +22,8 @@ for arg in "$@"; do
         --uefi|-uefi)
             UEFI_MODE=true
             ;;
+        -v|--vnc|-vnc|wsl1)
+            VNC_MODE_true
     esac
 done
 
@@ -118,6 +121,20 @@ else
         -D            build/qemu.log \
         "$@"
 fi
+
+if [ "$VNC_MODE" = true ]; then
+    qemu-system-x86_64 \
+        -m            256M           \
+        -cdrom        "$ISO"         \
+        -drive        file="$DISK1",format=raw,if=ide,index=0,media=disk \
+        -drive        file="$DISK2",format=raw,if=ide,index=1,media=disk \
+        $BOOT_OPTS   \
+        -vga std                   \
+        -serial       null          \
+        -vnc :1                     \
+        $UEFI_FORCE                \
+        -D            build/qemu.log \
+        "$@"
 
 if [ "$NOGRAPHIC" = false ]; then
     echo ""
