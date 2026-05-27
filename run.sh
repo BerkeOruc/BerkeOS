@@ -13,17 +13,22 @@ ISO="build/berkeos.iso"
 NOGRAPHIC=false
 UEFI_MODE=false
 VNC_MODE=false
+shifted_args=()
 
 for arg in "$@"; do
     case $arg in
-        -n|--nographic|--headless|-h)
+        -n|--nographic|--headless)
             NOGRAPHIC=true
             ;;
-        --uefi|-uefi)
+        --uefi)
             UEFI_MODE=true
             ;;
-        -v|--vnc|-vnc|wsl1)
-            VNC_MODE_true
+        -v|--vnc|wsl1)
+            VNC_MODE=true
+            ;;
+        *)
+            shifted_args+=("$arg")
+            ;;
     esac
 done
 
@@ -50,12 +55,12 @@ command -v qemu-system-x86_64 &>/dev/null || {
 
 if [ "$NOGRAPHIC" = false ]; then
     echo ""
-    echo -e "${GREEN}${BOLD}==> BerkeOS — Launching in QEMU${NC}"
+    echo -e "${GREEN}${BOLD}==> BerkeOS -- Launching in QEMU${NC}"
     echo -e "    ISO      : ${CYAN}$ISO${NC}"
     echo -e "    Arch     : x86_64  |  RAM: 256 MiB  |  Boot: ${CYAN}$UEFI_AUTO${NC}"
     echo -e "    Display  : ${CYAN}1024x768 32bpp pixel framebuffer${NC}"
     echo -e "    Drives   : ${CYAN}Alpha (ide0) | Beta (ide1)${NC}"
-    echo -e "    Input    : ${CYAN}PS/2 Keyboard — click QEMU window to type${NC}"
+    echo -e "    Input    : ${CYAN}PS/2 Keyboard -- click QEMU window to type${NC}"
     echo ""
     echo -e "    ${YELLOW}Click the QEMU window to capture keyboard input${NC}"
     echo -e "    ${YELLOW}Press Ctrl+Alt+G to release mouse from QEMU${NC}"
@@ -107,7 +112,20 @@ if [ "$NOGRAPHIC" = true ]; then
         -serial       null          \
         $UEFI_FORCE                \
         -D            build/qemu.log \
-        "$@"
+        "${shifted_args[@]}"
+elif [ "$VNC_MODE" = true ]; then
+    qemu-system-x86_64 \
+        -m            256M           \
+        -cdrom        "$ISO"         \
+        -drive        file="$DISK1",format=raw,if=ide,index=0,media=disk \
+        -drive        file="$DISK2",format=raw,if=ide,index=1,media=disk \
+        $BOOT_OPTS   \
+        -vga          std            \
+        -serial       null           \
+        -vnc          :1             \
+        $UEFI_FORCE                \
+        -D            build/qemu.log \
+        "${shifted_args[@]}"
 else
     qemu-system-x86_64 \
         -m            256M           \
@@ -119,22 +137,8 @@ else
         -serial       stdio           \
         $UEFI_FORCE                \
         -D            build/qemu.log \
-        "$@"
+        "${shifted_args[@]}"
 fi
-
-if [ "$VNC_MODE" = true ]; then
-    qemu-system-x86_64 \
-        -m            256M           \
-        -cdrom        "$ISO"         \
-        -drive        file="$DISK1",format=raw,if=ide,index=0,media=disk \
-        -drive        file="$DISK2",format=raw,if=ide,index=1,media=disk \
-        $BOOT_OPTS   \
-        -vga std                   \
-        -serial       null          \
-        -vnc :1                     \
-        $UEFI_FORCE                \
-        -D            build/qemu.log \
-        "$@"
 
 if [ "$NOGRAPHIC" = false ]; then
     echo ""
