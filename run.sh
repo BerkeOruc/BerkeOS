@@ -7,6 +7,7 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 BOLD='\033[1m'
 NC='\033[0m'
+TAB='\t'
 
 ISO="build/berkeos.iso"
 
@@ -14,16 +15,46 @@ NOGRAPHIC=false
 UEFI_MODE=false
 VNC_MODE=false
 
+helpdoc() {
+            echo -e "${CYAN}BerkeOS QEMU Launch Script${NC}"
+            echo -e "Copyright (c) 2026 Berke Oruc et al."
+            echo -e "${TAB}Usage: $0 [-nuvh]"
+            echo -e ""
+            echo -e "Command Line Arguments:"
+            echo -e "${TAB}-n/--nographic/--headless"
+            echo -e "${TAB}${TAB}Launches QEMU without any graphic interface."
+            echo -e "${TAB}-u/--uefi"
+            echo -e "${TAB}${TAB}Launches QEMU using the OVMF firmware."
+            echo -e "${TAB}-v/--vnc"
+            echo -e "${TAB}${TAB}Launches a QEMU instance hosting a VNC server at :1 (port 5901)."
+            echo -e "${TAB}-h/--help"
+            echo -e "${TAB}${TAB}Shows this message."
+            echo -e ""
+            echo -e "If no arguments passed, the VM will launch using default settings (GUI, Legacy BIOS)"
+}
+
+# BREAKING: -h is moved to help for convenience.
+
 for arg in "$@"; do
-    case $arg in
-        -n|--nographic|--headless|-h)
+    case "$arg" in
+        -n|--nographic|--headless)
             NOGRAPHIC=true
             ;;
-        --uefi|-uefi)
+        -u|--uefi)
             UEFI_MODE=true
             ;;
-        -v|--vnc|-vnc|wsl1)
-            VNC_MODE_true
+        -v|--vnc)
+            VNC_MODE=true
+            ;;
+        -h|--help)
+            helpdoc
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $arg"
+            helpdoc
+            exit 1
+            ;;
     esac
 done
 
@@ -44,11 +75,21 @@ fi
 
 command -v qemu-system-x86_64 &>/dev/null || {
     echo -e "${RED}ERROR:${NC} qemu-system-x86_64 not found."
-    echo "Install: sudo pacman -S qemu-full"
+    echo "Install the needed packages to run qemu-system-x86_64 with the mode you specified using your distribution's package manager."
     exit 1
 }
 
-if [ "$NOGRAPHIC" = false ]; then
+if [ "$VNC_MODE" = true ]; then
+    echo ""
+    echo -e "${GREEN}${BOLD}==> BerkeOS — Launching in QEMU using VNC at :1 (port 5901)${NC}"
+    echo -e "    ISO      : ${CYAN}$ISO${NC}"
+    echo -e "    Arch     : x86_64  |  RAM: 256 MiB  |  Boot: ${CYAN}$UEFI_AUTO${NC}"
+    echo -e "    Display  : ${CYAN}1024x768 32bpp pixel framebuffer${NC}"
+    echo -e "    Drives   : ${CYAN}Alpha (ide0) | Beta (ide1)${NC}"
+    echo ""
+    echo -e "    ${YELLOW}Connect to the VNC server using a VNC client (like Remmina) to control this VM.${NC}"
+    echo ""
+elif [ "$NOGRAPHIC" = false ]; then
     echo ""
     echo -e "${GREEN}${BOLD}==> BerkeOS — Launching in QEMU${NC}"
     echo -e "    ISO      : ${CYAN}$ISO${NC}"
@@ -66,15 +107,17 @@ DISK1="build/berkeos_disk.img"
 DISK2="build/berkeos_disk2.img"
 
 if [ ! -f "$DISK1" ]; then
-    [ "$NOGRAPHIC" = false ] && echo -e "  ${CYAN}->  Alpha disk olusturuluyor...${NC}"
+    [ "$NOGRAPHIC" = false ] && echo -e "  ${CYAN}->  Creating alpha disk...${NC}"
     dd if=/dev/zero of="$DISK1" bs=1M count=128 2>/dev/null
 fi
 
 if [ ! -f "$DISK2" ]; then
-    [ "$NOGRAPHIC" = false ] && echo -e "  ${CYAN}->  Beta disk olusturuluyor...${NC}"
+    [ "$NOGRAPHIC" = false ] && echo -e "  ${CYAN}->  Creating beta disk...${NC}"
     dd if=/dev/zero of="$DISK2" bs=1M count=256 2>/dev/null
 fi
 
+# TIP: Using pflash device while using OVMF also handles edge cases.
+# NOTE: Distros ship OVMF in different folders. If licensing works, embedding the firmware in the repo is more practical.
 UEFI_BIOS=""
 UEFI_FORCE=""
 if [ -f "/usr/share/qemu/ovmf-x86_64.bin" ]; then
@@ -96,7 +139,20 @@ else
     BOOT_OPTS="-boot order=c,menu=off"
 fi
 
-if [ "$NOGRAPHIC" = true ]; then
+
+if [ "$VNC_MODE" = true ]; then
+    qemu-system-x86_64 \
+        -m            256M           \
+        -cdrom        "$ISO"         \
+        -drive        file="$DISK1",format=raw,if=ide,index=0,media=disk \
+        -drive        file="$DISK2",format=raw,if=ide,index=1,media=disk \
+        $BOOT_OPTS   \
+        -vga std                   \
+        -serial       none          \
+        -vnc :1                     \
+        $UEFI_FORCE                \
+        -D            build/qemu.log 
+elif [ "$NOGRAPHIC" = true ]; then
     qemu-system-x86_64 \
         -m            256M           \
         -cdrom        "$ISO"         \
@@ -104,10 +160,9 @@ if [ "$NOGRAPHIC" = true ]; then
         -drive        file="$DISK2",format=raw,if=ide,index=1,media=disk \
         $BOOT_OPTS   \
         -nographic                  \
-        -serial       null          \
+        -serial       none          \
         $UEFI_FORCE                \
-        -D            build/qemu.log \
-        "$@"
+        -D            build/qemu.log 
 else
     qemu-system-x86_64 \
         -m            256M           \
@@ -118,23 +173,8 @@ else
         -vga          std            \
         -serial       stdio           \
         $UEFI_FORCE                \
-        -D            build/qemu.log \
-        "$@"
+        -D            build/qemu.log 
 fi
-
-if [ "$VNC_MODE" = true ]; then
-    qemu-system-x86_64 \
-        -m            256M           \
-        -cdrom        "$ISO"         \
-        -drive        file="$DISK1",format=raw,if=ide,index=0,media=disk \
-        -drive        file="$DISK2",format=raw,if=ide,index=1,media=disk \
-        $BOOT_OPTS   \
-        -vga std                   \
-        -serial       null          \
-        -vnc :1                     \
-        $UEFI_FORCE                \
-        -D            build/qemu.log \
-        "$@"
 
 if [ "$NOGRAPHIC" = false ]; then
     echo ""
